@@ -7,7 +7,7 @@ import { BrandMark } from '../components/ui/BrandMark';
 import { LoadingState } from '../components/ui/LoadingState';
 import { PROJECT_IDENTITY } from '../constants/institutional';
 import { consumePendingAuthLink } from '../lib/authLinks';
-import { getCurrentSession, setSessionFromAuthLink, updatePassword } from '../services/authService';
+import { getCurrentSession, markPasswordChanged, setSessionFromAuthLink, updatePassword } from '../services/authService';
 
 const MIN_PASSWORD_LENGTH = 10;
 
@@ -21,7 +21,9 @@ export function SetPasswordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [state, setState] = useState<PageState>('checking');
-  const [isInvite, setIsInvite] = useState(searchParams.get('mode') === 'invite');
+  const mode = searchParams.get('mode');
+  const [isInvite, setIsInvite] = useState(mode === 'invite');
+  const isFirstAccess = mode === 'first';
   const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -73,10 +75,21 @@ export function SetPasswordPage() {
 
     setSaving(true);
     const { error } = await updatePassword(password);
-    setSaving(false);
 
     if (error) {
-      setErrorMessage(error.message);
+      setSaving(false);
+      setErrorMessage(
+        error.message.toLowerCase().includes('different from the old')
+          ? 'La nueva contraseña debe ser distinta de la contraseña temporal.'
+          : error.message,
+      );
+      return;
+    }
+
+    const marked = await markPasswordChanged();
+    setSaving(false);
+    if (marked.error) {
+      setErrorMessage(`La contraseña se ha cambiado, pero no se pudo registrar el cambio: ${marked.error.message}`);
       return;
     }
 
@@ -99,7 +112,10 @@ export function SetPasswordPage() {
           <section className="auth-card" aria-labelledby="set-password-title">
             <header className="auth-card-header">
               <p className="iris-eyebrow">{PROJECT_IDENTITY.name} · Acceso profesional</p>
-              <h1 id="set-password-title">{isInvite ? 'Crea tu contraseña' : 'Nueva contraseña'}</h1>
+              <h1 id="set-password-title">{isFirstAccess ? 'Cambia tu contraseña temporal' : isInvite ? 'Crea tu contraseña' : 'Nueva contraseña'}</h1>
+              {isFirstAccess ? (
+                <p className="auth-supporting-copy">Por seguridad, sustituye la contraseña temporal que te facilitó la coordinación del estudio por una personal que solo conozcas tú.</p>
+              ) : null}
               {email ? <p className="auth-supporting-copy">Cuenta: <strong>{email}</strong></p> : null}
             </header>
 

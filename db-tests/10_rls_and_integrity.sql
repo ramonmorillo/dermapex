@@ -238,4 +238,18 @@ select dermapex_test.expect((select count(*) from public.visits where patient_id
 select dermapex_test.expect((select count(*) from public.audit_log where table_name = 'patients' and action = 'DELETE') = 1, 'borrado de paciente auditado (con datos previos)');
 commit;
 
+-- ── Cambio de contraseña obligatorio ────────────────────────────────────────
+begin;
+select dermapex_test.as_user('bbbbbbbb-0000-4000-8000-000000000001');
+select dermapex_test.expect((select must_change_password from public.profiles where id = 'bbbbbbbb-0000-4000-8000-000000000001'), 'cuenta nueva obliga a cambiar la contraseña');
+select dermapex_test.expect_fail($$update public.profiles set must_change_password = false where id = 'bbbbbbbb-0000-4000-8000-000000000001'$$, 'el indicador no se puede alterar directamente');
+select public.mark_password_changed();
+select dermapex_test.expect((select not must_change_password from public.profiles where id = 'bbbbbbbb-0000-4000-8000-000000000001'), 'mark_password_changed desactiva el indicador propio');
+commit;
+select dermapex_test.expect((select must_change_password from public.profiles where id = 'dddddddd-0000-4000-8000-000000000001'), 'mark_password_changed no afecta a otras cuentas');
+begin;
+select dermapex_test.as_anon();
+select dermapex_test.expect_fail('select public.mark_password_changed()', 'anon no puede ejecutar mark_password_changed');
+commit;
+
 \echo 'DERMAPEX: todas las pruebas de RLS e integridad superadas.'
