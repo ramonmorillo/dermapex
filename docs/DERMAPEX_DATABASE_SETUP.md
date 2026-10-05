@@ -23,7 +23,10 @@ Validación previa: `scripts/test-db.sh` aplica todo en un PostgreSQL local y ej
 En Supabase → **Authentication**:
 
 1. **Sign In / Providers → Email → desactivar "Allow new users to sign up"**. Los usuarios se crearán solo desde el panel. Aunque alguien se registrara, no vería datos: un usuario nuevo no tiene centro asignado.
-2. **URL Configuration → Site URL**: `https://ramonmorillo.github.io/dermapex/`.
+2. **URL Configuration**:
+   - **Site URL**: `https://ramonmorillo.github.io/dermapex/`
+   - **Redirect URLs → Add URL**: `https://ramonmorillo.github.io/dermapex/`
+   Sin esto, los enlaces de invitación y de recuperación de contraseña apuntan a `localhost` y no funcionan.
 
 ## 2. Aplicar las migraciones
 
@@ -38,7 +41,9 @@ Opción C — pedírselo a Claude en la sesión: puede aplicarlas con el conecto
 
 ## 3. Crear usuarios
 
-Supabase → **Authentication → Users → Add user → Create new user**: email + contraseña, marcando *Auto Confirm User*. Se crea su perfil automáticamente con rol `investigator` y **sin centro** (no ve nada todavía).
+Supabase → **Authentication → Users → Add user → Send invitation** con el email de cada profesional. Cada persona recibe un correo, pulsa el enlace y **crea su propia contraseña** en la pantalla «Crea tu contraseña» de la aplicación (nadie más la conoce). Si alguien la olvida, usa «¿Has olvidado tu contraseña?» en la página de acceso.
+
+Al crearse el usuario se genera su perfil automáticamente con rol `investigator` y **sin centro** (no ve nada hasta el paso 4).
 
 ## 4. Dar de alta centros, coordinación y pertenencias
 
