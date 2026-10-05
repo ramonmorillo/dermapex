@@ -347,8 +347,7 @@ export function PatientDetailPage() {
         lastVisitDate={followupStatus.lastAttendedDate}
         followup={followupStatus}
         details={[
-          { label: 'Farmacia', value: patient.pharmacy_site || '-' },
-          { label: 'Investigador/a', value: patient.investigator_name || '-' },
+          { label: 'Centro', value: patient.center ? `${patient.center.code} · ${patient.center.name}` : '-' },
           {
             label: 'Consentimiento',
             value: patient.consent_signed ? <StatusBadge tone="positive">Sí</StatusBadge> : <StatusBadge tone="warning">No</StatusBadge>,

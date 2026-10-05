@@ -32,3 +32,28 @@ jobs:
       # Build sin credenciales: la app compila y, en ejecución, muestra la pantalla de configuración pendiente.
       - name: Build
         run: npm run build
+
+  # Valida las migraciones SQL y la RLS por centro en un PostgreSQL efímero (nunca contra Supabase).
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dermapex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Migrations and RLS tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dermapex_test
+        run: scripts/test-db.sh

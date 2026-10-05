@@ -18,7 +18,13 @@ type PatientRow = {
   age_at_inclusion: number | null;
   sex: string | null;
   created_at: string | null;
+  center: { code: string } | { code: string }[] | null;
 };
+
+function centerCodeOf(patient: PatientRow | undefined): string {
+  const center = Array.isArray(patient?.center) ? patient?.center[0] : patient?.center;
+  return center?.code ?? '';
+}
 
 type VisitRow = {
   id: string;
@@ -390,7 +396,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     questionnairesResult,
     patientMedicationsResult,
   ] = await Promise.all([
-    supabase.from('patients').select('id,study_code,inclusion_date,age_at_inclusion,sex,created_at').order('created_at', { ascending: true }),
+    supabase.from('patients').select('id,study_code,inclusion_date,age_at_inclusion,sex,created_at,center:centers(code)').order('created_at', { ascending: true }),
     supabase.from('visits').select('id,patient_id,visit_type,visit_number,visit_date,scheduled_date,created_at').order('created_at', { ascending: true }),
     supabase.from('cmo_scores').select('visit_id,score,priority'),
     supabase.from('interventions').select('id,visit_id,intervention_type,intervention_domain,priority_level,delivered,linked_to_cmo_level,outcome,notes,created_at').order('created_at', { ascending: true }),
@@ -470,6 +476,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
 
     return {
       patient_id: anonymizedPatientIdByRawId.get(patient.id) ?? '',
+      center_code: centerCodeOf(patient),
       study_code: patient.study_code,
       inclusion_date: patient.inclusion_date,
       age_at_inclusion: patient.age_at_inclusion,
@@ -543,6 +550,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     return {
       study_code: patient?.study_code ?? '',
       patient_id: anonymizedPatientIdByRawId.get(visit.patient_id) ?? '',
+      center_code: centerCodeOf(patient),
       visit_type: getVisitTypeLabel(visit.visit_type),
       visit_number: visit.visit_number,
       visit_date: visit.visit_date,
@@ -655,6 +663,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
   const maestroVarLabels: Record<string, string> = {
     study_code: 'Codigo de estudio',
     patient_id: 'Identificador anonimizado del paciente',
+    center_code: 'Codigo de centro participante',
     visit_type: 'Tipo de visita',
     visit_number: 'Numero de visita',
     visit_date: 'Fecha de visita',

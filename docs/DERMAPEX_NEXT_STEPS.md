@@ -17,10 +17,11 @@ Leyenda de dependencias: **[P]** protocolo/CRD · **[I]** instrumento validado (
 
 ## 1. Modelo de datos definitivo
 
-- Migraciones nuevas según `DERMAPEX_DATABASE_PLAN.md` (núcleo, **centros y pertenencias**, RLS por centro, auditoría ampliada, Storage, `med_catalog_*`). [T] + lista de centros/roles [P]
+- ✅ Hecho (fase 2): migraciones del núcleo en `supabase/migrations/` (centros y pertenencias, RLS por centro con roles investigador/coordinación, pacientes seudonimizados, auditoría ampliada, Storage, `med_catalog_*`) y pruebas automatizadas de RLS (`scripts/test-db.sh`, CI). **Pendiente de aplicar** al proyecto Supabase: ver `DERMAPEX_DATABASE_SETUP.md`.
+- Alta de centros participantes y usuarios (coordinación). [P]
 - Tabla clínica por visita que sustituya a `clinical_assessments`. [P]
 - Tipos TypeScript generados desde el esquema; servicios nuevos (p. ej. `clinicalDataService.ts`) usando `utils/payloadNormalization.ts`. [T]
-- Pruebas automatizadas de RLS. [T]
+- Pantalla de gestión de centros/usuarios para coordinación (hoy por SQL). [T]
 
 ## 2. Variables clínicas de dermatitis atópica
 

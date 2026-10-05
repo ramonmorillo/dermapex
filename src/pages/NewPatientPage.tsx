@@ -5,14 +5,14 @@ import { SEX_TYPE_OPTIONS } from '../constants/enums';
 import type { SexType } from '../constants/enums';
 import { ErrorState } from '../components/common/ErrorState';
 import { PageHeader } from '../components/ui/PageHeader';
+import { listAccessibleCenters, type Center } from '../services/centerService';
 import { createPatient } from '../services/patientService';
 
 export function NewPatientPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState<{
     study_code: string;
-    pharmacy_site: string;
-    investigator_name: string;
+    center_id: string;
     inclusion_date: string;
     screening_date: string;
     birth_date: string;
@@ -21,8 +21,7 @@ export function NewPatientPage() {
     consent_signed: boolean;
   }>({
     study_code: '',
-    pharmacy_site: '',
-    investigator_name: '',
+    center_id: '',
     inclusion_date: '',
     screening_date: '',
     birth_date: '',
@@ -32,6 +31,19 @@ export function NewPatientPage() {
   });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [centers, setCenters] = useState<Center[]>([]);
+  const [centersError, setCentersError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const result = await listAccessibleCenters();
+      setCenters(result.data);
+      setCentersError(result.errorMessage);
+      if (result.data.length === 1) {
+        setForm((p) => ({ ...p, center_id: result.data[0].id }));
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!form.birth_date || !form.inclusion_date) return;
@@ -51,12 +63,11 @@ export function NewPatientPage() {
     setErrorMessage(null);
 
     const result = await createPatient({
-      study_code: form.study_code,
-      pharmacy_site: form.pharmacy_site || null,
-      investigator_name: form.investigator_name || null,
+      study_code: form.study_code.trim(),
+      center_id: form.center_id,
       inclusion_date: form.inclusion_date || null,
       screening_date: form.screening_date || null,
-      birth_date: form.birth_date || null,
+      // La fecha de nacimiento solo se usa para calcular la edad; no se envía ni se almacena.
       age_at_inclusion: form.age_at_inclusion ? Number(form.age_at_inclusion) : null,
       sex: form.sex || null,
       consent_signed: form.consent_signed,
@@ -86,16 +97,22 @@ export function NewPatientPage() {
             <input value={form.study_code} onChange={(e) => setForm((p) => ({ ...p, study_code: e.target.value }))} required />
           </label>
           <label>
-            {/* PENDIENTE DERMAPEX: texto libre heredado de IRIS (columna pharmacy_site). Sustituir por centro participante (center_id). */}
-            Centro
-            <input value={form.pharmacy_site} onChange={(e) => setForm((p) => ({ ...p, pharmacy_site: e.target.value }))} />
-          </label>
-          <label>
-            Investigador/a
-            <input
-              value={form.investigator_name}
-              onChange={(e) => setForm((p) => ({ ...p, investigator_name: e.target.value }))}
-            />
+            <span>Centro <span className="required-mark" aria-hidden="true">*</span></span>
+            <select
+              value={form.center_id}
+              onChange={(e) => setForm((p) => ({ ...p, center_id: e.target.value }))}
+              required
+              disabled={centers.length === 0}
+            >
+              <option value="" disabled>
+                {centers.length === 0 ? 'Sin centros asignados' : 'Selecciona un centro'}
+              </option>
+              {centers.map((center) => (
+                <option key={center.id} value={center.id}>
+                  {center.code} · {center.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Fecha inclusión
@@ -114,7 +131,7 @@ export function NewPatientPage() {
             />
           </label>
           <label>
-            Fecha nacimiento
+            Fecha nacimiento (solo para calcular la edad; no se guarda)
             <input type="date" value={form.birth_date} onChange={(e) => setForm((p) => ({ ...p, birth_date: e.target.value }))} />
           </label>
           <label>
@@ -158,6 +175,13 @@ export function NewPatientPage() {
           </Link>
         </div>
       </form>
+      {centersError ? <ErrorState title="No se pudieron cargar los centros" message={centersError} /> : null}
+      {!centersError && centers.length === 0 ? (
+        <ErrorState
+          title="Sin centro asignado"
+          message="Tu usuario no tiene ningún centro participante asignado. Solicita el alta a la coordinación del estudio."
+        />
+      ) : null}
       {errorMessage ? <ErrorState title="No se pudo guardar" message={errorMessage} /> : null}
     </section>
     </div>

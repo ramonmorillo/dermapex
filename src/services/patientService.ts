@@ -1,21 +1,22 @@
 import { supabase } from '../lib/supabase';
 import type { SexType } from '../constants/enums';
 
+// Paciente seudonimizado: solo código de estudio. Sin identificadores directos ni fecha de nacimiento
+// (la edad se calcula en el cliente). Ver supabase/migrations/20261005100100_dermapex_clinical_core.sql.
 export type Patient = {
   id: string;
+  center_id: string;
   study_code: string;
-  pharmacy_site: string | null;
-  investigator_name: string | null;
   inclusion_date: string | null;
   screening_date: string | null;
-  birth_date: string | null;
   age_at_inclusion: number | null;
   sex: SexType | null;
   consent_signed: boolean | null;
   created_at?: string;
+  center?: { id: string; code: string; name: string } | null;
 };
 
-export type NewPatientInput = Omit<Patient, 'id' | 'created_at'>;
+export type NewPatientInput = Omit<Patient, 'id' | 'created_at' | 'center'>;
 
 function extractErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
@@ -24,8 +25,17 @@ function extractErrorMessage(error: unknown): string {
   return 'Error desconocido al procesar pacientes.';
 }
 
+type PatientRow = Omit<Patient, 'center'> & { center?: Patient['center'] | Array<NonNullable<Patient['center']>> };
+
+// PostgREST devuelve la relación muchos-a-uno como objeto, pero sin tipos generados supabase-js la
+// tipa como lista: se normaliza a objeto en un único punto.
+function normalizePatient(row: PatientRow): Patient {
+  const center = Array.isArray(row.center) ? (row.center[0] ?? null) : (row.center ?? null);
+  return { ...row, center };
+}
+
 const PATIENT_SELECT =
-  'id,study_code,pharmacy_site,investigator_name,inclusion_date,screening_date,birth_date,age_at_inclusion,sex,consent_signed,created_at';
+  'id,center_id,study_code,inclusion_date,screening_date,age_at_inclusion,sex,consent_signed,created_at,center:centers(id,code,name)';
 
 export async function listPatients(searchStudyCode?: string): Promise<{ data: Patient[]; errorMessage: string | null }> {
   if (!supabase) {
@@ -47,7 +57,7 @@ export async function listPatients(searchStudyCode?: string): Promise<{ data: Pa
     return { data: [], errorMessage: extractErrorMessage(error) };
   }
 
-  return { data: (data ?? []) as Patient[], errorMessage: null };
+  return { data: ((data ?? []) as unknown as PatientRow[]).map(normalizePatient), errorMessage: null };
 }
 
 export async function getPatientById(id: string): Promise<{ data: Patient | null; errorMessage: string | null }> {
@@ -64,7 +74,7 @@ export async function getPatientById(id: string): Promise<{ data: Patient | null
     return { data: null, errorMessage: extractErrorMessage(error) };
   }
 
-  return { data: (data as Patient | null) ?? null, errorMessage: null };
+  return { data: data ? normalizePatient(data as unknown as PatientRow) : null, errorMessage: null };
 }
 
 export async function createPatient(input: NewPatientInput): Promise<{ data: Patient | null; errorMessage: string | null }> {
@@ -86,7 +96,7 @@ export async function createPatient(input: NewPatientInput): Promise<{ data: Pat
     return { data: null, errorMessage: extractErrorMessage(error) };
   }
 
-  return { data: (data as Patient | null) ?? null, errorMessage: null };
+  return { data: data ? normalizePatient(data as unknown as PatientRow) : null, errorMessage: null };
 }
 
 export async function deletePatientById(id: string): Promise<{ success: boolean; errorMessage: string | null }> {
@@ -97,44 +107,19 @@ export async function deletePatientById(id: string): Promise<{ success: boolean;
     };
   }
 
-  const deleteResult = await supabase.from('patients').delete().eq('id', id);
+  // Las visitas y registros dependientes se eliminan en cascada en la base de datos y quedan auditados.
+  // La RLS solo permite el borrado a coordinación: un borrado sin filas afectadas indica falta de permiso.
+  const { data, error } = await supabase.from('patients').delete().eq('id', id).select('id');
 
-  if (!deleteResult.error) {
-    return { success: true, errorMessage: null };
+  if (error) {
+    return { success: false, errorMessage: extractErrorMessage(error) };
   }
 
-  const isForeignKeyViolation = deleteResult.error.code === '23503';
-  if (!isForeignKeyViolation) {
-    return { success: false, errorMessage: extractErrorMessage(deleteResult.error) };
-  }
-
-  const { data: visits, error: visitsError } = await supabase.from('visits').select('id').eq('patient_id', id);
-  if (visitsError) {
-    return { success: false, errorMessage: extractErrorMessage(visitsError) };
-  }
-
-  const visitIds = (visits ?? []).map((visit) => visit.id as string);
-
-  if (visitIds.length > 0) {
-    const { error: cmoScoresError } = await supabase.from('cmo_scores').delete().in('visit_id', visitIds);
-    if (cmoScoresError) {
-      return { success: false, errorMessage: extractErrorMessage(cmoScoresError) };
-    }
-
-    const { error: interventionsError } = await supabase.from('interventions').delete().in('visit_id', visitIds);
-    if (interventionsError) {
-      return { success: false, errorMessage: extractErrorMessage(interventionsError) };
-    }
-
-    const { error: visitsDeleteError } = await supabase.from('visits').delete().eq('patient_id', id);
-    if (visitsDeleteError) {
-      return { success: false, errorMessage: extractErrorMessage(visitsDeleteError) };
-    }
-  }
-
-  const { error: patientDeleteError } = await supabase.from('patients').delete().eq('id', id);
-  if (patientDeleteError) {
-    return { success: false, errorMessage: extractErrorMessage(patientDeleteError) };
+  if (!data || data.length === 0) {
+    return {
+      success: false,
+      errorMessage: 'No se eliminó el paciente: solo la coordinación del estudio puede eliminar pacientes.',
+    };
   }
 
   return { success: true, errorMessage: null };
