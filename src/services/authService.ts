@@ -99,3 +99,24 @@ export async function verifyEmailLinkToken(tokenHash: string, type: EmailOtpType
   const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
   return { user: data.user, session: data.session, error };
 }
+
+/** Indica si la cuenta tiene contraseña temporal pendiente de cambiar (ante cualquier duda: true). */
+export async function mustChangePassword(userId: string): Promise<{ value: boolean; error: Error | null }> {
+  if (!supabase) {
+    return { value: false, error: new Error('Supabase no está configurado en variables de entorno.') };
+  }
+
+  const { data, error } = await supabase.from('profiles').select('must_change_password').eq('id', userId).maybeSingle();
+  if (error) return { value: true, error };
+  return { value: data?.must_change_password !== false, error: null };
+}
+
+/** Marca que la persona ya ha fijado su propia contraseña. */
+export async function markPasswordChanged(): Promise<{ error: Error | null }> {
+  if (!supabase) {
+    return { error: new Error('Supabase no está configurado en variables de entorno.') };
+  }
+
+  const { error } = await supabase.rpc('mark_password_changed');
+  return { error };
+}

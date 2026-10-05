@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
-import { getCurrentSession, signOut, subscribeToAuthChanges } from '../../services/authService';
+import { getCurrentSession, mustChangePassword, signOut, subscribeToAuthChanges } from '../../services/authService';
 import { InstitutionalReference } from '../common/InstitutionalReference';
 import { BrandMark } from '../ui/BrandMark';
 import { LoadingState } from '../ui/LoadingState';
@@ -32,6 +32,14 @@ export function AppShell() {
 
       if (!session) {
         navigate('/login', { replace: true });
+        return;
+      }
+
+      // Contraseña temporal (cuenta creada por coordinación): debe cambiarse antes de acceder.
+      const passwordCheck = await mustChangePassword(session.user.id);
+      if (!mounted) return;
+      if (passwordCheck.value) {
+        navigate('/set-password?mode=first', { replace: true });
         return;
       }
 

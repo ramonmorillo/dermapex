@@ -28,7 +28,9 @@ En Supabase → **Authentication**:
    - **Redirect URLs → Add URL**: `https://ramonmorillo.github.io/dermapex/`
    Sin esto, los enlaces de invitación y de recuperación de contraseña apuntan a `localhost` y no funcionan.
 
-## 1 bis. Plantillas de correo (obligatorio con correo corporativo)
+## 1 bis. Plantillas de correo (solo con SMTP propio o plan Pro)
+
+> **No aplicable en el plan gratuito actual**: Supabase no permite editar plantillas sin SMTP propio. Mientras tanto se usa el procedimiento del paso 3 (contraseña temporal + cambio obligatorio). Lo siguiente queda preparado para cuando se configure SMTP.
 
 Los filtros antiphishing del correo corporativo (p. ej. `@juntadeandalucia.es`) abren automáticamente los enlaces de los correos y **consumen el enlace de un solo uso** antes que el destinatario (error «Email link is invalid or has expired»). Por eso los correos deben llevar a una página de DERMAPEX con un botón «Continuar», y el token solo se canjea al pulsarlo.
 
@@ -59,11 +61,19 @@ Opción B — **Supabase CLI**: `supabase link --project-ref <ref-del-proyecto-D
 
 Opción C — pedírselo a Claude en la sesión: puede aplicarlas con el conector de Supabase **tras tu confirmación explícita** del proyecto destino.
 
-## 3. Crear usuarios
+## 3. Crear usuarios (contraseña temporal + cambio obligatorio)
 
-Supabase → **Authentication → Users → Add user → Send invitation** con el email de cada profesional. Cada persona recibe un correo, pulsa el enlace y **crea su propia contraseña** en la pantalla «Crea tu contraseña» de la aplicación (nadie más la conoce). Si alguien la olvida, usa «¿Has olvidado tu contraseña?» en la página de acceso.
+En el plan gratuito de Supabase **no se pueden editar las plantillas de correo** (requiere SMTP propio) y el filtro antiphishing del correo corporativo consume los enlaces de un solo uso de las invitaciones. Por eso las cuentas se crean así:
 
-Al crearse el usuario se genera su perfil automáticamente con rol `investigator` y **sin centro** (no ve nada hasta el paso 4).
+1. Supabase → **Authentication → Users → Add user → Create new user**.
+2. Email del profesional y una **contraseña temporal distinta para cada persona** (mínimo 12 caracteres, no reutilizable; p. ej. generada con un gestor de contraseñas). Marcar **Auto Confirm User**.
+3. Comunicar la contraseña temporal **por un canal distinto del correo** (teléfono).
+4. En el primer acceso la aplicación **obliga a sustituirla** por una personal (pantalla «Cambia tu contraseña temporal»); no se puede usar nada más hasta hacerlo.
+
+Al crearse el usuario se genera su perfil con rol `investigator`, **sin centro** y con `must_change_password = true`.
+
+Si alguien olvida su contraseña: coordinación le asigna otra temporal desde el panel y ejecuta
+`update public.profiles set must_change_password = true where id = (select id from auth.users where email = '<email>');`
 
 ## 4. Dar de alta centros, coordinación y pertenencias
 
