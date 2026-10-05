@@ -7,7 +7,8 @@ Modelo CMO-MAPEX en dermatitis atópica. Aplicación web para un estudio prospec
 ## Documentación
 
 - `docs/DERMAPEX_MIGRATION_AUDIT.md` — qué se reutilizó, adaptó, retiró o queda en revisión.
-- `docs/DERMAPEX_DATABASE_PLAN.md` — plan del esquema Supabase (no hay migraciones todavía).
+- `docs/DERMAPEX_DATABASE_PLAN.md` — plan y estado del esquema Supabase.
+- `docs/DERMAPEX_DATABASE_SETUP.md` — cómo aplicar el esquema y dar de alta centros y usuarios.
 - `docs/DERMAPEX_NEXT_STEPS.md` — qué falta y qué lo bloquea.
 
 ## Arquitectura
@@ -43,6 +44,13 @@ Workflow `.github/workflows/deploy-pages.yml` (en cada push a `main`):
 3. Ruta base: por defecto `/dermapex/`; con dominio propio, crear la variable de repositorio `DERMAPEX_BASE_PATH=/`.
 
 Los PR ejecutan `.github/workflows/ci.yml` (typecheck, tests, build).
+
+## Base de datos
+
+- Migraciones en `supabase/migrations/` (acceso por centro, roles investigador/coordinación, pacientes seudonimizados, auditoría).
+- Pruebas de RLS e integridad en un PostgreSQL **local y desechable**:
+  `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dermapex_test scripts/test-db.sh`
+  (el script se niega a ejecutarse contra Supabase).
 
 ## Seguridad
 

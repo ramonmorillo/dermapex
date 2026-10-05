@@ -1,6 +1,6 @@
 # DERMAPEX · Plan de base de datos
 
-**Estado:** planificación. **No se ha ejecutado ninguna migración** ni cambio remoto en ningún proyecto Supabase (ni IRIS ni DERMAPEX). Este repositorio aún **no contiene** `supabase/migrations/`.
+**Estado (actualizado en la fase 2):** el núcleo está implementado como migraciones en `supabase/migrations/2026100510*.sql` y validado en un PostgreSQL local con `scripts/test-db.sh` (también en CI). **No se ha aplicado a ningún proyecto Supabase**: los pasos están en `DERMAPEX_DATABASE_SETUP.md`. Las secciones siguientes se conservan como plan de referencia; el §5 resume lo implementado.
 
 **Fuente:** migraciones de `ramonmorillo/cmorcvtesis` @ `45a3360` + uso real de tablas en el código migrado (`supabase.from(...)`).
 
@@ -65,3 +65,16 @@
 3. Validarlas en un entorno **local** (`supabase start`) o rama de desarrollo del proyecto DERMAPEX; ejecutar una batería de pruebas RLS (usuario de centro A no ve centro B; monitor solo lee; anónimo nada).
 4. Generar tipos TypeScript desde el esquema y sustituir los tipos escritos a mano en los servicios.
 5. Solo entonces aplicar al proyecto Supabase de DERMAPEX, con revisión explícita.
+
+## 5. Implementado en la fase 2 (decisiones del investigador, 2026-10-05)
+
+| Decisión | Implementación |
+|---|---|
+| Acceso **por centro** | `centers`, `center_memberships`; `patients.center_id` obligatorio; funciones `app_private.can_access_center/patient/visit` usadas por todas las políticas RLS. |
+| Roles **investigador de centro** y **coordinación** | `profiles.role ∈ {investigator, coordinator}`. Coordinación: todos los centros, borrados, catálogos, centros, pertenencias y auditoría. El rol solo se cambia por SQL. |
+| Pacientes **seudonimizados** | `patients` solo guarda código de estudio, centro, fechas de inclusión/cribado, edad, sexo y consentimiento. Sin NHC, nombre, teléfono, email ni fecha de nacimiento (la edad se calcula en el cliente). |
+| Trazabilidad | `audit_log` sin claves foráneas, solo inserción por trigger, con autor, centro, paciente, visita y estado anterior/nuevo. Cubre también medicación, documentos, centros, perfiles y pertenencias. Autoría (`created_by`, `calculated_by`, `user_id`…) sellada en servidor con `auth.uid()`. |
+| Integridad | Coherencia visita↔paciente (proceso, eventos de medicación, ítems CMO); documentos solo PDF ≤ 6 MB con ruta ligada a la visita; un cuestionario por visita y código, coherente con `questionnaire_measurement_map`. |
+| Catálogos vacíos | `intervention_catalog`, `cmo_variable_catalog` y `questionnaire_measurement_map` sin datos: se cargan desde el protocolo. Consecuencia: **los cuestionarios no se pueden guardar** hasta configurar la batería DERMAPEX. |
+
+No implementado (bloqueado por protocolo): tabla clínica de dermatitis atópica, calendario de visitas definitivo, catálogo de intervenciones, variables CMO-DERMAPEX.
