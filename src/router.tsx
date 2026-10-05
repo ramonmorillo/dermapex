@@ -10,6 +10,7 @@ import { PatientDetailPage } from './pages/PatientDetailPage';
 import { PatientsPage } from './pages/PatientsPage';
 import { ProjectPage } from './pages/ProjectPage';
 import { PublicInfoPage } from './pages/PublicInfoPage';
+import { SetPasswordPage } from './pages/SetPasswordPage';
 import { VisitInterventionsPage } from './pages/VisitInterventionsPage';
 import { VisitMedicationsPage } from './pages/VisitMedicationsPage';
 import { VisitQuestionnairesPage } from './pages/VisitQuestionnairesPage';
@@ -25,6 +26,10 @@ export const router = createHashRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    path: '/set-password',
+    element: <SetPasswordPage />,
   },
   ...['/legal', '/privacy', '/security', '/cookies'].map((path) => ({
     path,

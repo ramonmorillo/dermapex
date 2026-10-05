@@ -5,8 +5,10 @@ import { ErrorState } from '../components/common/ErrorState';
 import { PublicFooter } from '../components/public/PublicFooter';
 import { BrandMark } from '../components/ui/BrandMark';
 import { LoadingState } from '../components/ui/LoadingState';
+import { Notice } from '../components/ui/Notice';
 import { PROJECT_IDENTITY } from '../constants/institutional';
-import { getCurrentSession, signInWithPassword, subscribeToAuthChanges } from '../services/authService';
+import { consumePendingAuthLink, getAuthRedirectUrl } from '../lib/authLinks';
+import { getCurrentSession, requestPasswordReset, signInWithPassword, subscribeToAuthChanges } from '../services/authService';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -14,7 +16,12 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(() => {
+    const link = consumePendingAuthLink();
+    return link?.kind === 'error' ? `El enlace del correo no es válido o ha caducado (${link.description}). Solicita uno nuevo.` : null;
+  });
+  const [resetMode, setResetMode] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -71,6 +78,20 @@ export function LoginPage() {
     navigate('/dashboard', { replace: true });
   };
 
+  const handlePasswordReset = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoading(true);
+    setErrorMessage(null);
+    setResetMessage(null);
+    const { error } = await requestPasswordReset(email, getAuthRedirectUrl());
+    setLoading(false);
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    setResetMessage('Si el email corresponde a una cuenta del estudio, recibirás un enlace para crear una nueva contraseña.');
+  };
+
   return (
     <div className="public-page">
       <a className="skip-link" href="#contenido">Saltar al contenido</a>
@@ -111,7 +132,23 @@ export function LoginPage() {
             <div className="access-context"><p className="iris-eyebrow">Entorno profesional seguro</p><h2>Acceso restringido al estudio</h2><p>Accede al entorno de trabajo con las credenciales facilitadas para tu participación.</p><div className="responsible-note"><strong>Uso responsable</strong><p>{PROJECT_IDENTITY.name} apoya el registro estructurado y el seguimiento en el marco del estudio. Sus resultados deben ser interpretados por profesionales sanitarios cualificados y no sustituyen el juicio clínico individual.</p></div></div>
             <section className="auth-card" aria-labelledby="auth-title">
               <header className="auth-card-header"><p className="iris-eyebrow">{PROJECT_IDENTITY.name} · Área restringida</p><h2 id="auth-title">Acceso profesional</h2><p className="auth-supporting-copy">Acceso exclusivo para profesionales autorizados participantes en el estudio.</p></header>
-              {checkingSession ? <LoadingState label="Comprobando sesión activa..." /> : <form onSubmit={handleSubmit} className="form-grid"><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" placeholder="profesional@centro.es" /></label><label>Contraseña<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" /></label><button type="submit" className="button-block" disabled={loading}>{loading ? 'Entrando...' : 'Entrar'}</button></form>}
+              {checkingSession ? (
+                <LoadingState label="Comprobando sesión activa..." />
+              ) : resetMode ? (
+                <form onSubmit={handlePasswordReset} className="form-grid">
+                  <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" placeholder="profesional@centro.es" /></label>
+                  <button type="submit" className="button-block" disabled={loading}>{loading ? 'Enviando...' : 'Enviar enlace de recuperación'}</button>
+                  <button type="button" className="button-secondary" onClick={() => { setResetMode(false); setResetMessage(null); setErrorMessage(null); }}>Volver al acceso</button>
+                </form>
+              ) : (
+                <form onSubmit={handleSubmit} className="form-grid">
+                  <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" placeholder="profesional@centro.es" /></label>
+                  <label>Contraseña<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required autoComplete="current-password" /></label>
+                  <button type="submit" className="button-block" disabled={loading}>{loading ? 'Entrando...' : 'Entrar'}</button>
+                  <button type="button" className="button-secondary" onClick={() => { setResetMode(true); setErrorMessage(null); }}>¿Has olvidado tu contraseña?</button>
+                </form>
+              )}
+              {resetMessage ? <Notice tone="success">{resetMessage}</Notice> : null}
               {errorMessage ? <ErrorState title="No se pudo iniciar sesión" message={errorMessage} /> : null}
               <p className="auth-note"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="currentColor" strokeWidth="1.4" /><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor" /></svg>Entorno profesional seguro</p>
             </section>

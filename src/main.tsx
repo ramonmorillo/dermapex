@@ -1,3 +1,5 @@
+// Primero: captura los tokens de invitación/recuperación antes de que el HashRouter lea la URL.
+import './lib/authLinks';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
