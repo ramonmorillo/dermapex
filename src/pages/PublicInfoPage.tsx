@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 
 import { PublicFooter } from '../components/public/PublicFooter';
-import { IrisMark } from '../components/ui/IrisMark';
+import { BrandMark } from '../components/ui/BrandMark';
 
 type PageContent = {
   eyebrow: string;
@@ -16,13 +16,13 @@ const pages: Record<string, PageContent> = {
   '/legal': {
     eyebrow: 'Información institucional',
     title: 'Aviso legal',
-    introduction: 'Información provisional sobre el uso de este sitio web y de la herramienta IRIS.',
+    introduction: 'Información provisional sobre el uso de este sitio web y de la herramienta DERMAPEX.',
     sections: [
       { title: 'Titular y contacto', body: pending },
-      { title: 'Finalidad del sitio', body: 'Presentar IRIS y facilitar el acceso restringido a profesionales autorizados participantes en el proyecto de investigación CMO-RCV.' },
+      { title: 'Finalidad del sitio', body: 'Presentar DERMAPEX y facilitar el acceso restringido a profesionales autorizados participantes en el estudio DERMAPEX.' },
       { title: 'Condiciones de uso', body: 'El acceso a las áreas profesionales requiere autorización. Las personas usuarias deben custodiar sus credenciales y utilizar la herramienta exclusivamente en el marco autorizado.' },
       { title: 'Propiedad intelectual', body: pending },
-      { title: 'Responsabilidad', body: 'IRIS apoya el registro estructurado y el seguimiento del proyecto. La información que presenta debe ser interpretada por profesionales sanitarios cualificados y no sustituye el juicio clínico individual.' },
+      { title: 'Responsabilidad', body: 'DERMAPEX apoya el registro estructurado y el seguimiento del estudio. La información que presenta debe ser interpretada por profesionales sanitarios cualificados y no sustituye el juicio clínico individual.' },
       { title: 'Legislación aplicable', body: pending },
     ],
   },
@@ -34,7 +34,7 @@ const pages: Record<string, PageContent> = {
       { title: 'Responsable y Delegado de Protección de Datos', body: pending },
       { title: 'Datos tratados', body: 'La aplicación está preparada para registrar datos identificativos, clínicos, farmacoterapéuticos y resultados de cuestionarios necesarios para el seguimiento del proyecto. La delimitación jurídica definitiva de las categorías tratadas está pendiente de validación.' },
       { title: 'Finalidad y base jurídica', body: pending },
-      { title: 'Datos relativos a la salud e investigación', body: 'IRIS se utiliza en el marco del proyecto de investigación CMO-RCV. Las condiciones concretas del tratamiento de datos de salud y su relación con la investigación están pendientes de validación jurídica.' },
+      { title: 'Datos relativos a la salud e investigación', body: 'DERMAPEX se utiliza en el marco del estudio DERMAPEX. Las condiciones concretas del tratamiento de datos de salud y su relación con la investigación están pendientes de validación jurídica.' },
       { title: 'Destinatarios, encargados y alojamiento', body: pending },
       { title: 'Conservación', body: pending },
       { title: 'Derechos', body: pending },
@@ -44,10 +44,10 @@ const pages: Record<string, PageContent> = {
   '/security': {
     eyebrow: 'Entorno profesional',
     title: 'Seguridad',
-    introduction: 'Información técnica verificable sobre las medidas visibles en la implementación actual de IRIS.',
+    introduction: 'Información técnica verificable sobre las medidas visibles en la implementación actual de DERMAPEX.',
     sections: [
       { title: 'Acceso restringido', body: 'Las áreas operativas requieren una sesión autenticada. Si no existe una sesión válida, la aplicación dirige al acceso profesional.' },
-      { title: 'Autenticación y datos', body: 'La implementación utiliza Supabase para la autenticación y el acceso a datos. La base de datos incorpora políticas de seguridad a nivel de fila (RLS) definidas en las migraciones del proyecto.' },
+      { title: 'Autenticación y datos', body: 'La implementación utiliza Supabase para la autenticación y el acceso a datos. El esquema de base de datos de DERMAPEX, con sus políticas de seguridad a nivel de fila (RLS), está pendiente de definición y despliegue.' },
       { title: 'Comunicaciones', body: 'El sitio público de producción debe servirse mediante HTTPS. La seguridad efectiva también depende de la configuración del alojamiento, Supabase y los dispositivos de las personas usuarias.' },
       { title: 'Uso responsable', body: 'Las credenciales son personales y deben mantenerse bajo custodia. Ningún sistema puede presentarse como exento de riesgo.' },
     ],
@@ -74,9 +74,9 @@ export function PublicInfoPage() {
       <a className="skip-link" href="#public-content">Saltar al contenido</a>
       <header className="public-header public-header-compact">
         <div className="public-container public-nav">
-          <Link className="public-brand" to="/" aria-label="IRIS · Volver al inicio">
-            <IrisMark size={34} />
-            <span><strong>IRIS</strong><small>CMO-RCV</small></span>
+          <Link className="public-brand" to="/" aria-label="DERMAPEX · Volver al inicio">
+            <BrandMark size={34} />
+            <span><strong>DERMAPEX</strong><small>CMO-MAPEX</small></span>
           </Link>
           <Link className="public-access-link" to="/login">Acceso profesional</Link>
         </div>
@@ -93,7 +93,7 @@ export function PublicInfoPage() {
             </section>
           ))}
         </div>
-        <Link to="/" className="text-link">← Volver a IRIS</Link>
+        <Link to="/" className="text-link">← Volver a DERMAPEX</Link>
       </main>
       <PublicFooter />
     </div>

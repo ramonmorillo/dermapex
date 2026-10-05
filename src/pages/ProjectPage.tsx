@@ -1,34 +1,34 @@
 import { PageHeader } from '../components/ui/PageHeader';
-import { THESIS_INSTITUTIONAL_REFERENCE } from '../constants/institutional';
+import { PENDING_PROTOCOL_LABEL, PROJECT_IDENTITY, PROJECT_INSTITUTIONAL_REFERENCE } from '../constants/institutional';
 
 export function ProjectPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="IRIS · Proyecto institucional"
-        title="Marco académico y clínico"
-        description="Este módulo documenta la base universitaria del proyecto y el marco de investigación que soporta el uso de IRIS en seguimiento farmacoterapéutico."
+        eyebrow="DERMAPEX · Proyecto"
+        title="Marco del estudio"
+        description="Datos institucionales del estudio. Los campos pendientes se completarán a partir del protocolo oficial aprobado."
       />
 
       <section className="card institutional-block" aria-labelledby="project-title">
-        <h2 id="project-title">Proyecto doctoral vinculado</h2>
-        <p className="project-title">“{THESIS_INSTITUTIONAL_REFERENCE.projectTitle}”</p>
+        <h2 id="project-title">{PROJECT_IDENTITY.name}</h2>
+        <p className="project-title">{PROJECT_IDENTITY.subtitle}</p>
         <dl className="definition-grid">
           <div>
-            <dt>Doctoranda</dt>
-            <dd>{THESIS_INSTITUTIONAL_REFERENCE.doctoralCandidate}</dd>
+            <dt>Diseño</dt>
+            <dd>Estudio prospectivo multicéntrico</dd>
           </div>
           <div>
-            <dt>Dirección de tesis</dt>
-            <dd>{THESIS_INSTITUTIONAL_REFERENCE.thesisDirectors}</dd>
+            <dt>Promotor</dt>
+            <dd>{PROJECT_INSTITUTIONAL_REFERENCE.sponsor ?? PENDING_PROTOCOL_LABEL}</dd>
           </div>
           <div>
-            <dt>Universidad</dt>
-            <dd>{THESIS_INSTITUTIONAL_REFERENCE.university}</dd>
+            <dt>Investigador principal</dt>
+            <dd>{PROJECT_INSTITUTIONAL_REFERENCE.principalInvestigator ?? PENDING_PROTOCOL_LABEL}</dd>
           </div>
           <div>
-            <dt>Código SICEIA</dt>
-            <dd className="numeric">{THESIS_INSTITUTIONAL_REFERENCE.siceiaCode}</dd>
+            <dt>Código de aprobación CEIm</dt>
+            <dd className="numeric">{PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode ?? PENDING_PROTOCOL_LABEL}</dd>
           </div>
         </dl>
       </section>

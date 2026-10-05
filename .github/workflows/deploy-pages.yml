@@ -33,13 +33,15 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Test questionnaire report integrity
+      - name: Typecheck and tests
         run: npm test
 
       - name: Build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Sin dominio propio, GitHub Pages sirve el sitio en /dermapex/. Ajustable con la variable de repositorio DERMAPEX_BASE_PATH.
+          DERMAPEX_BASE_PATH: ${{ vars.DERMAPEX_BASE_PATH || '/dermapex/' }}
         run: npm run build
 
       - name: Upload artifact

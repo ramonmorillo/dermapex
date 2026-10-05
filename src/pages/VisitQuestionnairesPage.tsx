@@ -347,6 +347,18 @@ export function VisitQuestionnairesPage() {
         <h1>Cuestionarios PRO</h1>
         <VisitTabs visitId={visitId} active="questionnaires" />
 
+        {/*
+          PENDIENTE DERMAPEX: los instrumentos de esta pantalla (IEXPAC, Morisky-Green, EQ-5D-5L, PAM-10)
+          y su calendario (basal / Mes 12) son los configurados en IRIS. El motor genérico (guardado
+          por visita, mapeo questionnaire_measurement_map, puntuación derivada y validación de
+          trazabilidad) se conserva. La batería DERMAPEX (IEXPAC, POEM, NRS de prurito, DLQI, EVASAF,
+          adherencia…) y sus reglas de puntuación se configurarán a partir del protocolo.
+        */}
+        <Notice tone="warning">
+          Instrumentos heredados de IRIS, pendientes de validación para DERMAPEX. La batería de cuestionarios del
+          protocolo DERMAPEX (incluidos POEM, NRS de prurito, DLQI y EVASAF) aún no está configurada.
+        </Notice>
+
         {!questionnaireEnabled ? (
           <Notice tone="info">Este bloque solo aplica a visitas basal y final (Mes 12 provisional).</Notice>
         ) : null}

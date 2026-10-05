@@ -49,45 +49,6 @@ type InterventionRow = {
   created_at: string | null;
 };
 
-type AssessmentRow = {
-  visit_id: string;
-  education_level: string | null;
-  pregnancy_postpartum: string | null;
-  biological_sex: string | null;
-  race_ethnicity_risk: string | null;
-  hypertension_present: string | null;
-  cv_pathology_present: string | null;
-  comorbidities_present: string | null;
-  recent_cvd_12m: string | null;
-  hospital_er_use_12m: string | null;
-  physical_activity_pattern: string | null;
-  social_support_absent: string | null;
-  psychosocial_stress: string | null;
-  chronic_med_count: number | null;
-  recent_regimen_change: string | null;
-  regimen_complexity_present: string | null;
-  adherence_problem: string | null;
-  systolic_bp: number | null;
-  diastolic_bp: number | null;
-  heart_rate: number | null;
-  weight_kg: number | null;
-  height_cm: number | null;
-  bmi: number | null;
-  waist_cm: number | null;
-  ldl_mg_dl: number | null;
-  hdl_mg_dl: number | null;
-  non_hdl_mg_dl: number | null;
-  fasting_glucose_mg_dl: number | null;
-  hba1c_pct: number | null;
-  score2_value: number | null;
-  framingham_value: number | null;
-  cv_risk_level: string | null;
-  smoker_status: string | null;
-  diet_score: number | null;
-  adverse_events_count: number | null;
-  high_risk_medication_present: boolean | null;
-};
-
 type QuestionnaireRow = {
   visit_id: string;
   patient_id: string | null;
@@ -412,7 +373,11 @@ function getLatestVisitIdByType(visits: VisitRow[], selector: (visitType: string
   return filtered.length > 0 ? filtered[filtered.length - 1].id : null;
 }
 
-export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
+// Exportación de la base de investigación (CSV, XLSX, SPSS .sav y sintaxis .sps), anonimizada.
+// DERMAPEX: se han retirado las variables de la evaluación clínica cardiovascular de IRIS
+// (tabla clinical_assessments). Las variables clínicas de dermatitis atópica, los PROs del
+// protocolo y el diccionario de datos definitivo se incorporarán en la fase de adaptación clínica.
+export async function exportResearchDataBundle(): Promise<ExportOutcome> {
   if (!supabase) {
     return { success: false, errorMessage: 'Supabase no está configurado. No se puede exportar.', generatedFiles: [] };
   }
@@ -422,7 +387,6 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
     visitsResult,
     scoresResult,
     interventionsResult,
-    assessmentsResult,
     questionnairesResult,
     patientMedicationsResult,
   ] = await Promise.all([
@@ -430,7 +394,6 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
     supabase.from('visits').select('id,patient_id,visit_type,visit_number,visit_date,scheduled_date,created_at').order('created_at', { ascending: true }),
     supabase.from('cmo_scores').select('visit_id,score,priority'),
     supabase.from('interventions').select('id,visit_id,intervention_type,intervention_domain,priority_level,delivered,linked_to_cmo_level,outcome,notes,created_at').order('created_at', { ascending: true }),
-    supabase.from('clinical_assessments').select('visit_id,education_level,pregnancy_postpartum,biological_sex,race_ethnicity_risk,hypertension_present,cv_pathology_present,comorbidities_present,recent_cvd_12m,hospital_er_use_12m,physical_activity_pattern,social_support_absent,psychosocial_stress,chronic_med_count,recent_regimen_change,regimen_complexity_present,adherence_problem,systolic_bp,diastolic_bp,heart_rate,weight_kg,height_cm,bmi,waist_cm,ldl_mg_dl,hdl_mg_dl,non_hdl_mg_dl,fasting_glucose_mg_dl,hba1c_pct,score2_value,framingham_value,cv_risk_level,smoker_status,diet_score,adverse_events_count,high_risk_medication_present'),
     listAllQuestionnaires(),
     supabase
       .from('patient_medications')
@@ -445,7 +408,6 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
     visitsResult.error,
     scoresResult.error,
     interventionsResult.error,
-    assessmentsResult.error,
     questionnairesResult.errorMessage ? { message: questionnairesResult.errorMessage } : null,
     patientMedicationsResult.error,
   ].find(Boolean);
@@ -458,7 +420,6 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
   const visits = (visitsResult.data ?? []) as VisitRow[];
   const scores = (scoresResult.data ?? []) as ScoreRow[];
   const interventions = (interventionsResult.data ?? []) as InterventionRow[];
-  const assessments = (assessmentsResult.data ?? []) as AssessmentRow[];
   const questionnaires = (questionnairesResult.data ?? []) as QuestionnaireRow[];
   const patientMedications = ((patientMedicationsResult.data ?? []) as PatientMedicationRow[]).map((row) => ({
     ...row,
@@ -469,7 +430,6 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
   const anonymizedVisitIdByRawId = new Map(visits.map((visit, index) => [visit.id, `V${String(index + 1).padStart(5, '0')}`]));
 
   const scoreByVisitId = new Map(scores.map((score) => [score.visit_id, score]));
-  const assessmentByVisitId = new Map(assessments.map((assessment) => [assessment.visit_id, assessment]));
   const interventionsByVisitId = interventions.reduce<Map<string, InterventionRow[]>>((acc, intervention) => {
     const list = acc.get(intervention.visit_id) ?? [];
     list.push(intervention);
@@ -536,7 +496,6 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
 
   const stratificationCsvRows = visits.map((visit) => {
     const score = scoreByVisitId.get(visit.id);
-    const assessment = assessmentByVisitId.get(visit.id);
     const q = questionnaireByVisitAndType.get(visit.id);
 
     return {
@@ -547,41 +506,6 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
       IEXPAC: q?.get('iexpac')?.total_score ?? null,
       Morisky: q?.get('morisky')?.total_score ?? null,
       EQ5D_vas: q?.get('eq5d')?.secondary_score ?? null,
-      education_level: assessment?.education_level ?? '',
-      pregnancy_postpartum: assessment?.pregnancy_postpartum ?? '',
-      biological_sex: assessment?.biological_sex ?? '',
-      race_ethnicity_risk: assessment?.race_ethnicity_risk ?? '',
-      hypertension_present: assessment?.hypertension_present ?? '',
-      cv_pathology_present: assessment?.cv_pathology_present ?? '',
-      comorbidities_present: assessment?.comorbidities_present ?? '',
-      recent_cvd_12m: assessment?.recent_cvd_12m ?? '',
-      hospital_er_use_12m: assessment?.hospital_er_use_12m ?? '',
-      physical_activity_pattern: assessment?.physical_activity_pattern ?? '',
-      social_support_absent: assessment?.social_support_absent ?? '',
-      psychosocial_stress: assessment?.psychosocial_stress ?? '',
-      chronic_med_count: assessment?.chronic_med_count ?? null,
-      recent_regimen_change: assessment?.recent_regimen_change ?? '',
-      regimen_complexity_present: assessment?.regimen_complexity_present ?? '',
-      adherence_problem: assessment?.adherence_problem ?? '',
-      systolic_bp: assessment?.systolic_bp ?? null,
-      diastolic_bp: assessment?.diastolic_bp ?? null,
-      heart_rate: assessment?.heart_rate ?? null,
-      weight_kg: assessment?.weight_kg ?? null,
-      height_cm: assessment?.height_cm ?? null,
-      bmi: assessment?.bmi ?? null,
-      waist_cm: assessment?.waist_cm ?? null,
-      ldl_mg_dl: assessment?.ldl_mg_dl ?? null,
-      hdl_mg_dl: assessment?.hdl_mg_dl ?? null,
-      non_hdl_mg_dl: assessment?.non_hdl_mg_dl ?? null,
-      fasting_glucose_mg_dl: assessment?.fasting_glucose_mg_dl ?? null,
-      hba1c_pct: assessment?.hba1c_pct ?? null,
-      score2_value: assessment?.score2_value ?? null,
-      framingham_value: assessment?.framingham_value ?? null,
-      cv_risk_level: assessment?.cv_risk_level ?? '',
-      smoker_status: assessment?.smoker_status ?? '',
-      diet_score: assessment?.diet_score ?? null,
-      adverse_events_count: assessment?.adverse_events_count ?? null,
-      high_risk_medication_present: assessment?.high_risk_medication_present ?? null,
     };
   });
 
@@ -611,7 +535,6 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
   const datasetMaestroRows = visits.map((visit) => {
     const patient = patients.find((row) => row.id === visit.patient_id);
     const score = scoreByVisitId.get(visit.id);
-    const assessment = assessmentByVisitId.get(visit.id);
     const visitInterventions = interventionsByVisitId.get(visit.id) ?? [];
     const qByType = questionnaireByVisitAndType.get(visit.id);
     const activeMedicationList = activeMedicationByPatientId.get(visit.patient_id) ?? [];
@@ -624,48 +547,13 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
       visit_number: visit.visit_number,
       visit_date: visit.visit_date,
       edad: patient?.age_at_inclusion ?? null,
-      sexo: patient?.sex ?? assessment?.biological_sex ?? '',
+      sexo: patient?.sex ?? '',
       score_cmo: score?.score ?? null,
       nivel_cmo: score?.priority ?? null,
       IEXPAC: qByType?.get('iexpac')?.total_score ?? null,
       Morisky: qByType?.get('morisky')?.total_score ?? null,
       EQ5D_vas: qByType?.get('eq5d')?.secondary_score ?? null,
       EQ5D_profile: String(qByType?.get('eq5d')?.responses?.profile ?? ''),
-      education_level: assessment?.education_level ?? '',
-      pregnancy_postpartum: assessment?.pregnancy_postpartum ?? '',
-      biological_sex: assessment?.biological_sex ?? '',
-      race_ethnicity_risk: assessment?.race_ethnicity_risk ?? '',
-      hypertension_present: assessment?.hypertension_present ?? '',
-      cv_pathology_present: assessment?.cv_pathology_present ?? '',
-      comorbidities_present: assessment?.comorbidities_present ?? '',
-      recent_cvd_12m: assessment?.recent_cvd_12m ?? '',
-      hospital_er_use_12m: assessment?.hospital_er_use_12m ?? '',
-      physical_activity_pattern: assessment?.physical_activity_pattern ?? '',
-      social_support_absent: assessment?.social_support_absent ?? '',
-      psychosocial_stress: assessment?.psychosocial_stress ?? '',
-      chronic_med_count: assessment?.chronic_med_count ?? null,
-      recent_regimen_change: assessment?.recent_regimen_change ?? '',
-      regimen_complexity_present: assessment?.regimen_complexity_present ?? '',
-      adherence_problem: assessment?.adherence_problem ?? '',
-      systolic_bp: assessment?.systolic_bp ?? null,
-      diastolic_bp: assessment?.diastolic_bp ?? null,
-      heart_rate: assessment?.heart_rate ?? null,
-      weight_kg: assessment?.weight_kg ?? null,
-      height_cm: assessment?.height_cm ?? null,
-      bmi: assessment?.bmi ?? null,
-      waist_cm: assessment?.waist_cm ?? null,
-      ldl_mg_dl: assessment?.ldl_mg_dl ?? null,
-      hdl_mg_dl: assessment?.hdl_mg_dl ?? null,
-      non_hdl_mg_dl: assessment?.non_hdl_mg_dl ?? null,
-      fasting_glucose_mg_dl: assessment?.fasting_glucose_mg_dl ?? null,
-      hba1c_pct: assessment?.hba1c_pct ?? null,
-      score2_value: assessment?.score2_value ?? null,
-      framingham_value: assessment?.framingham_value ?? null,
-      cv_risk_level: assessment?.cv_risk_level ?? '',
-      smoker_status: assessment?.smoker_status ?? '',
-      diet_score: assessment?.diet_score ?? null,
-      adverse_events_count: assessment?.adverse_events_count ?? null,
-      high_risk_medication_present: assessment?.high_risk_medication_present ?? null,
       n_intervenciones: visitInterventions.length,
       pilar_principal: getMainPillar(visitInterventions),
       outcome: getVisitOutcome(visitInterventions),
@@ -727,7 +615,7 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
 
   const datasetMaestroSps = buildSpsSyntax({
     csvFileName: 'dataset_maestro.csv',
-    datasetName: 'Dataset maestro IRIS',
+    datasetName: 'Dataset maestro DERMAPEX',
     headers: Object.keys(normalizedDatasetMaestroRows[0] ?? {}),
     variableLabels: {
       patient_id: 'Identificador anonimizado del paciente',
@@ -778,41 +666,6 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
     Morisky: 'Puntuacion Morisky (adherencia)',
     EQ5D_vas: 'EQ5D VAS (calidad de vida)',
     EQ5D_profile: 'Perfil EQ5D',
-    education_level: 'Nivel educativo',
-    pregnancy_postpartum: 'Embarazo o postparto',
-    biological_sex: 'Sexo biologico',
-    race_ethnicity_risk: 'Riesgo etnico o racial',
-    hypertension_present: 'Hipertension presente',
-    cv_pathology_present: 'Patologia cardiovascular presente',
-    comorbidities_present: 'Comorbilidades presentes',
-    recent_cvd_12m: 'Evento cardiovascular reciente (12 meses)',
-    hospital_er_use_12m: 'Urgencias u hospitalizacion (12 meses)',
-    physical_activity_pattern: 'Patron de actividad fisica',
-    social_support_absent: 'Ausencia de apoyo social',
-    psychosocial_stress: 'Estres psicosocial',
-    chronic_med_count: 'Numero de medicamentos cronicos',
-    recent_regimen_change: 'Cambio reciente de regimen',
-    regimen_complexity_present: 'Complejidad del regimen presente',
-    adherence_problem: 'Problema de adherencia',
-    systolic_bp: 'Presion arterial sistolica (mmHg)',
-    diastolic_bp: 'Presion arterial diastolica (mmHg)',
-    heart_rate: 'Frecuencia cardiaca (lpm)',
-    weight_kg: 'Peso (kg)',
-    height_cm: 'Talla (cm)',
-    bmi: 'IMC (kg/m2)',
-    waist_cm: 'Perimetro de cintura (cm)',
-    ldl_mg_dl: 'LDL colesterol (mg/dL)',
-    hdl_mg_dl: 'HDL colesterol (mg/dL)',
-    non_hdl_mg_dl: 'Colesterol no-HDL (mg/dL)',
-    fasting_glucose_mg_dl: 'Glucemia basal (mg/dL)',
-    hba1c_pct: 'HbA1c (%)',
-    score2_value: 'SCORE2 (%)',
-    framingham_value: 'Framingham (%)',
-    cv_risk_level: 'Nivel de riesgo cardiovascular',
-    smoker_status: 'Estado tabaquico',
-    diet_score: 'Puntuacion de dieta',
-    adverse_events_count: 'Numero de efectos adversos',
-    high_risk_medication_present: 'Medicamento de alto riesgo presente',
     n_intervenciones: 'Numero de intervenciones en la visita',
     pilar_principal: 'Pilar CMO dominante',
     outcome: 'Desenlace de intervencion',
@@ -824,7 +677,6 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
 
   const maestroValueLabels: Record<string, Record<string, string>> = {
     polypharmacy: { '0': 'No', '1': 'Si' },
-    high_risk_medication_present: { '0': 'No', '1': 'Si' },
   };
 
   const medVarLabels: Record<string, string> = {
@@ -874,18 +726,18 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
     { name: 'Cuestionarios', rows: normalizedQuestionnairesRows },
     { name: 'DatasetMaestro', rows: normalizedDatasetMaestroRows },
   ]);
-  downloadBinaryFile('investigacion_iris.xlsx', xlsxBinary, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  downloadBinaryFile('investigacion_dermapex.xlsx', xlsxBinary, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
   // SPSS SAV binarios reales (dataset_maestro + medicacion_por_visita)
   const maestroHeaders = Object.keys(normalizedDatasetMaestroRows[0] ?? {});
   if (maestroHeaders.length > 0) {
-    const maestroSav = buildSavFile(maestroHeaders, maestroVarLabels, maestroValueLabels, normalizedDatasetMaestroRows, 'Dataset Maestro IRIS');
+    const maestroSav = buildSavFile(maestroHeaders, maestroVarLabels, maestroValueLabels, normalizedDatasetMaestroRows, 'Dataset Maestro DERMAPEX');
     downloadBinaryFile('dataset_maestro.sav', maestroSav, 'application/x-spss-sav');
   }
 
   const medHeaders = Object.keys(normalizedMedicationByVisitRows[0] ?? {});
   if (medHeaders.length > 0) {
-    const medSav = buildSavFile(medHeaders, medVarLabels, medValueLabels, normalizedMedicationByVisitRows, 'Medicacion por Visita IRIS');
+    const medSav = buildSavFile(medHeaders, medVarLabels, medValueLabels, normalizedMedicationByVisitRows, 'Medicacion por Visita DERMAPEX');
     downloadBinaryFile('medicacion_por_visita.sav', medSav, 'application/x-spss-sav');
   }
 
@@ -902,7 +754,7 @@ export async function exportThesisDataCsvBundle(): Promise<ExportOutcome> {
       'medicacion_por_visita.csv',
       'dataset_maestro.sps',
       'medicacion_por_visita.sps',
-      'investigacion_iris.xlsx',
+      'investigacion_dermapex.xlsx',
       'dataset_maestro.sav',
       'medicacion_por_visita.sav',
     ],

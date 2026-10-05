@@ -13,7 +13,7 @@ import { TrendDelta } from '../components/ui/TrendDelta';
 import { CMO_LEVEL_META } from '../constants/cmoLevels';
 import { getVisitTypeLabel } from '../constants/enums';
 import { loadDashboardData, type DashboardData } from '../services/dashboardService';
-import { exportThesisDataCsvBundle } from '../services/exportService';
+import { exportResearchDataBundle } from '../services/exportService';
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -44,7 +44,7 @@ export function DashboardPage() {
     setExportMessage(null);
     setExportError(null);
 
-    const result = await exportThesisDataCsvBundle();
+    const result = await exportResearchDataBundle();
 
     if (!result.success) {
       setExportError(result.errorMessage ?? 'No se pudieron exportar los datos.');
@@ -84,9 +84,9 @@ export function DashboardPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="IRIS Insights"
+        eyebrow="DERMAPEX · Panel"
         title="Dashboard clínico"
-        description="Panel operativo y estratégico para seguimiento poblacional de riesgo cardiovascular."
+        description="Panel operativo del estudio. Indicadores heredados de la infraestructura CMO, pendientes de validación para DERMAPEX."
         actions={
           <button
             type="button"
@@ -105,6 +105,13 @@ export function DashboardPage() {
         {exportMessage ? <Notice tone="success">{exportMessage}</Notice> : null}
         {exportError ? <Notice tone="danger">{exportError}</Notice> : null}
       </PageHeader>
+
+      <Notice tone="info">
+        Fase de migración: los indicadores de este panel proceden de la infraestructura genérica CMO heredada de IRIS
+        (cohorte, seguimiento, actividad farmacéutica, calidad de datos). Los indicadores basados en niveles CMO
+        permanecerán vacíos hasta implementar el CMO-DERMAPEX scoring engine. Los indicadores dermatológicos
+        definitivos se definirán a partir del protocolo.
+      </Notice>
 
       <section className="card" aria-labelledby="dash-cohort">
         <SectionHeader id="dash-cohort" title="Cohorte" description="Nivel CMO actual = última estratificación registrada de cada paciente." />

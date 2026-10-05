@@ -1,11 +1,12 @@
-type IrisMarkProps = {
+type BrandMarkProps = {
   size?: number;
   className?: string;
   title?: string;
 };
 
-// Isotipo IRIS: anillo abierto (seguimiento longitudinal), nodo de intervención y núcleo (paciente).
-export function IrisMark({ size = 28, className, title }: IrisMarkProps) {
+// Isotipo provisional de DERMAPEX (monograma). Reutiliza las clases CSS heredadas de IRIS
+// (iris-mark-*) para no reescribir la hoja de estilos en esta fase de migración.
+export function BrandMark({ size = 28, className, title }: BrandMarkProps) {
   return (
     <svg
       className={['iris-mark', className].filter(Boolean).join(' ')}
@@ -18,9 +19,9 @@ export function IrisMark({ size = 28, className, title }: IrisMarkProps) {
     >
       {title ? <title>{title}</title> : null}
       <rect className="iris-mark-bg" width="32" height="32" rx="8" />
-      <path className="iris-mark-ring" d="M12.9 24.5A9 9 0 1 0 8.6 21.2" />
-      <circle className="iris-mark-node" cx="8.6" cy="21.2" r="2" />
-      <circle className="iris-mark-core" cx="16" cy="16" r="3.4" />
+      <text x="16" y="21.5" textAnchor="middle" fontSize="15" fontWeight="700" fill="#ffffff" fontFamily="system-ui, sans-serif">
+        D
+      </text>
     </svg>
   );
 }

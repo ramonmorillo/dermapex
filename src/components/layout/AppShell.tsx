@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 
 import { getCurrentSession, signOut, subscribeToAuthChanges } from '../../services/authService';
 import { InstitutionalReference } from '../common/InstitutionalReference';
-import { IrisMark } from '../ui/IrisMark';
+import { BrandMark } from '../ui/BrandMark';
 import { LoadingState } from '../ui/LoadingState';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-link active' : 'nav-link');
@@ -99,11 +99,11 @@ export function AppShell() {
       <a className="skip-link" href="#main-content">Saltar al contenido</a>
       <header className="topbar">
         <div className="topbar-inner">
-          <Link className="brand" to="/dashboard" aria-label="IRIS · Ir al dashboard">
-            <IrisMark size={30} />
+          <Link className="brand" to="/dashboard" aria-label="DERMAPEX · Ir al dashboard">
+            <BrandMark size={30} />
             <span className="brand-stack">
-              <span className="brand-name">IRIS</span>
-              <span className="brand-subtitle">Intelligent Risk &amp; Intervention Suite</span>
+              <span className="brand-name">DERMAPEX</span>
+              <span className="brand-subtitle">Modelo CMO-MAPEX en dermatitis atópica</span>
             </span>
           </Link>
           <nav className="main-nav" aria-label="Navegación principal">
@@ -125,7 +125,7 @@ export function AppShell() {
             </NavLink>
           </nav>
           <div className="topbar-meta">
-            <span className="system-status" title="Sesión autenticada en el entorno profesional de IRIS">
+            <span className="system-status" title="Sesión autenticada en el entorno profesional de DERMAPEX">
               <span className="system-status-dot" aria-hidden="true" />
               Entorno profesional seguro
             </span>

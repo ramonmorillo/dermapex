@@ -22,7 +22,6 @@ import {
   getVisitTypeSortOrder,
   type VisitStatus,
 } from '../constants/enums';
-import { listClinicalAssessmentsByPatient, type ClinicalAssessmentHistoryEntry } from '../services/assessmentService';
 import { PatientMedicationSummary } from '../features/medications/PatientMedicationSummary';
 import { getLatestMedicationReviewDate, listActivePatientMedications } from '../features/medications/medicationsService';
 import type { PatientMedication } from '../features/medications/types';
@@ -109,8 +108,6 @@ export function PatientDetailPage() {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [latestCmoScore, setLatestCmoScore] = useState<CmoScoreRecord | null>(null);
   const [cmoHistory, setCmoHistory] = useState<CmoScoreHistoryEntry[]>([]);
-  const [assessmentHistory, setAssessmentHistory] = useState<ClinicalAssessmentHistoryEntry[]>([]);
-  const [assessmentHistoryWarning, setAssessmentHistoryWarning] = useState<string | null>(null);
   const [interventions, setInterventions] = useState<Array<{ id: string; visit_id: string; intervention_type: string; priority_level: PriorityLevel | null }>>([]);
   const [questionnaires, setQuestionnaires] = useState<QuestionnaireResponseRecord[]>([]);
   const [activeMedications, setActiveMedications] = useState<PatientMedication[]>([]);
@@ -127,7 +124,6 @@ export function PatientDetailPage() {
         setErrorMessage(null);
         setQuestionnaireWarning(null);
         setMedicationWarning(null);
-        setAssessmentHistoryWarning(null);
 
         const [patientResult, visitsResult] = await Promise.all([getPatientById(id), listVisitsByPatient(id)]);
 
@@ -143,7 +139,6 @@ export function PatientDetailPage() {
         const [
           cmoResult,
           cmoHistoryResult,
-          assessmentHistoryResult,
           interventionsResult,
           questionnairesResult,
           medicationsResult,
@@ -151,7 +146,6 @@ export function PatientDetailPage() {
         ] = await Promise.allSettled([
           getLatestCmoScoreByPatient(id),
           listCmoScoresByPatient(id),
-          listClinicalAssessmentsByPatient(id),
           listInterventionsByPatient(id),
           getQuestionnairesByPatient(id),
           listActivePatientMedications(id),
@@ -168,16 +162,6 @@ export function PatientDetailPage() {
           setCmoHistory(cmoHistoryResult.value.data);
         } else {
           setCmoHistory([]);
-        }
-
-        if (assessmentHistoryResult.status === 'fulfilled') {
-          setAssessmentHistory(assessmentHistoryResult.value.data);
-          if (assessmentHistoryResult.value.errorMessage) {
-            setAssessmentHistoryWarning(`Evolución de parámetros no disponible temporalmente: ${assessmentHistoryResult.value.errorMessage}`);
-          }
-        } else {
-          setAssessmentHistory([]);
-          setAssessmentHistoryWarning('Evolución de parámetros no disponible temporalmente. La ficha base se cargó correctamente.');
         }
 
         if (interventionsResult.status === 'fulfilled') {
@@ -354,7 +338,7 @@ export function PatientDetailPage() {
   return (
     <div className="page-stack">
       <PatientHeader
-        eyebrow="IRIS · Ficha de paciente"
+        eyebrow="DERMAPEX · Ficha de paciente"
         studyCode={patient.study_code}
         sexLabel={getSexLabel(patient.sex)}
         age={patient.age_at_inclusion}
@@ -490,7 +474,7 @@ export function PatientDetailPage() {
       <section className="card" aria-labelledby="patient-cmo-evolution">
         <SectionHeader
           id="patient-cmo-evolution"
-          title="Evolución CMO-RCV"
+          title="Evolución CMO"
           description="Mayor puntuación = mayor complejidad. Bandas según los umbrales del modelo de estratificación."
         />
         {latestHistory ? (
@@ -543,15 +527,16 @@ export function PatientDetailPage() {
             ) : null}
           </>
         ) : (
-          <p className="empty-inline">Sin puntuación CMO registrada. Completa la estratificación basal.</p>
+          <p className="empty-inline">Sin puntuación CMO registrada. La estratificación CMO-DERMAPEX está pendiente de implementación.</p>
         )}
       </section>
 
-      <BaselineTrendPanel entries={assessmentHistory} warning={assessmentHistoryWarning} />
+      {/* PENDIENTE DERMAPEX: alimentar con el historial de variables clínicas cuando exista su servicio. */}
+      <BaselineTrendPanel entries={[]} />
 
       <div className="split-grid">
         <section className="card" aria-labelledby="patient-questionnaires">
-          <SectionHeader id="patient-questionnaires" title="Resumen de cuestionarios (tesis)" description="Registro basal frente a visita final." />
+          <SectionHeader id="patient-questionnaires" title="Resumen de cuestionarios" description="Registro basal frente a visita final." />
           <div className="table-wrap">
             <table>
               <thead>

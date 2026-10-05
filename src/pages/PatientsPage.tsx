@@ -106,7 +106,7 @@ export function PatientsPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="IRIS · Cohorte"
+        eyebrow="DERMAPEX · Cohorte"
         title="Pacientes"
         description={`${patients.length} ${patients.length === 1 ? 'paciente' : 'pacientes'} en el listado. Prioridad actual = última puntuación CMO registrada.`}
         actions={

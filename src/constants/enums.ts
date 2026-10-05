@@ -99,15 +99,6 @@ export function getVisitStatusLabel(status: VisitStatus | null): string {
   return VISIT_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status;
 }
 
-export const SMOKER_STATUS_OPTIONS = [
-  { value: 'never', label: 'Nunca' },
-  { value: 'former_recent', label: 'Exfumador reciente' },
-  { value: 'current', label: 'Actual' },
-  { value: 'unknown', label: 'Desconocido' },
-] as const;
-
-export type SmokerStatus = (typeof SMOKER_STATUS_OPTIONS)[number]['value'];
-
 export function getSexLabel(sex: string | null | undefined): string {
   if (!sex) return '-';
   return SEX_TYPE_OPTIONS.find((option) => option.value === sex)?.label ?? sex;

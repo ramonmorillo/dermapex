@@ -74,7 +74,7 @@ export function NewPatientPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="IRIS · Cohorte"
+        eyebrow="DERMAPEX · Cohorte"
         title="Alta de paciente"
         description="Registro de inclusión en el estudio. Los campos marcados con * son obligatorios."
       />
@@ -86,7 +86,8 @@ export function NewPatientPage() {
             <input value={form.study_code} onChange={(e) => setForm((p) => ({ ...p, study_code: e.target.value }))} required />
           </label>
           <label>
-            Farmacia
+            {/* PENDIENTE DERMAPEX: texto libre heredado de IRIS (columna pharmacy_site). Sustituir por centro participante (center_id). */}
+            Centro
             <input value={form.pharmacy_site} onChange={(e) => setForm((p) => ({ ...p, pharmacy_site: e.target.value }))} />
           </label>
           <label>

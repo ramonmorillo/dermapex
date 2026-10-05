@@ -32,53 +32,13 @@ type InterventionCatalogItem = {
 
 const OTHER_INTERVENTION_CODE = '__other__';
 
-const INTERVENTION_CATALOG: InterventionCatalogItem[] = [
-  // NIVEL 3 · BASAL
-  { code: 'L3-SFT-01', label: 'Revisar y validar el tratamiento cardiovascular para garantizar su adecuación, seguridad y efectividad dentro de los plazos de cumplimiento clínico sugeridos por las guías, registrando y comunicando las reacciones adversas a medicamentos observadas.', domain: 'Seguimiento farmacoterapéutico', cmo_pillar: 'oportunidad', min_level: 3 },
-  { code: 'L3-SFT-02', label: 'Monitorizar la adherencia del paciente a las prescripciones médicas y establecer estrategias efectivas de mejora mediante educación, apoyo conductual, atención colaborativa y gestión de casos, adaptadas a las características específicas de la enfermedad cardiovascular.', domain: 'Seguimiento farmacoterapéutico', cmo_pillar: 'motivacion', min_level: 3 },
-  { code: 'L3-SFT-03', label: 'Conciliar y revisar la medicación concomitante para identificar y gestionar posibles interacciones farmacológicas, ofreciendo alternativas terapéuticas cuando sea necesario.', domain: 'Seguimiento farmacoterapéutico', cmo_pillar: 'capacidad', min_level: 3 },
-  { code: 'L3-EDU-01', label: 'Promover un paciente activo e informado que comparta la responsabilidad sobre los resultados del tratamiento, proporcionando información básica sobre las terapias cardiovasculares y el manejo de problemas relacionados con la medicación.', domain: 'Educación sanitaria y promoción de estilos de vida saludables', cmo_pillar: 'motivacion', min_level: 3 },
-  { code: 'L3-EDU-02', label: 'Proporcionar información detallada sobre los tratamientos y la enfermedad cardiovascular, resolviendo las dudas del paciente sobre su situación clínica.', domain: 'Educación sanitaria y promoción de estilos de vida saludables', cmo_pillar: 'capacidad', min_level: 3 },
-  { code: 'L3-EDU-03', label: 'Ofrecer educación sanitaria general sobre estilos de vida cardiosaludables, control de factores de riesgo, uso correcto de la medicación y cumplimiento de objetivos terapéuticos mediante recursos web de farmacia o folletos para pacientes.', domain: 'Educación sanitaria y promoción de estilos de vida saludables', cmo_pillar: 'capacidad', min_level: 3 },
-  { code: 'L3-EDU-04', label: 'Fomentar el uso de herramientas de autocuidado, proporcionando recursos web y aplicaciones informativas para la formación del paciente y la confirmación de cambios reales en el estilo de vida.', domain: 'Educación sanitaria y promoción de estilos de vida saludables', cmo_pillar: 'capacidad', min_level: 3 },
-  { code: 'L3-EDU-05', label: 'Reforzar la educación sobre prevención y adherencia, destacando el impacto de la falta de adherencia sobre el aumento del riesgo cardiovascular.', domain: 'Educación sanitaria y promoción de estilos de vida saludables', cmo_pillar: 'motivacion', min_level: 3 },
-  { code: 'L3-CRF-01', label: 'Control de la presión arterial.', domain: 'Cribado y detección de factores de riesgo cardiovascular', cmo_pillar: 'oportunidad', min_level: 3 },
-  { code: 'L3-CRF-02', label: 'Medición del perfil lipídico.', domain: 'Cribado y detección de factores de riesgo cardiovascular', cmo_pillar: 'oportunidad', min_level: 3 },
-  { code: 'L3-CRF-03', label: 'Cuantificación de HbA1c.', domain: 'Cribado y detección de factores de riesgo cardiovascular', cmo_pillar: 'oportunidad', min_level: 3 },
-  { code: 'L3-CRF-05', label: 'Monitorización de glucosa', domain: 'Cribado y detección de factores de riesgo cardiovascular', cmo_pillar: 'oportunidad', min_level: 3 },
-  { code: 'L3-CRF-04', label: 'Cribado de fibrilación auricular en pacientes mayores de 65 años.', domain: 'Cribado y detección de factores de riesgo cardiovascular', cmo_pillar: 'oportunidad', min_level: 3 },
-  { code: 'L3-CET-01', label: 'Identificar la etapa de cambio del paciente —precontemplación, contemplación, preparación, acción o mantenimiento— utilizando el modelo transteórico.', domain: 'Cesación tabáquica', cmo_pillar: 'motivacion', min_level: 3 },
-  { code: 'L3-CET-02', label: 'Aplicar técnicas de entrevista motivacional para aumentar la implicación del paciente y resolver la ambivalencia hacia el abandono del tabaco.', domain: 'Cesación tabáquica', cmo_pillar: 'motivacion', min_level: 3 },
-  { code: 'L3-CET-03', label: 'Entregar materiales educativos básicos sobre los riesgos del tabaco y de los nuevos sistemas de administración de nicotina.', domain: 'Cesación tabáquica', cmo_pillar: 'capacidad', min_level: 3 },
-  { code: 'L3-ADH-01', label: 'Evaluar de forma rutinaria la adherencia mediante herramientas validadas, como el cuestionario Morisky-Green-Levine, combinándolo con la validación de los registros de dispensación mediante sistemas electrónicos.', domain: 'Mejora de la adherencia terapéutica', cmo_pillar: 'oportunidad', min_level: 3 },
-  { code: 'L3-ADH-02', label: 'Proporcionar información básica sobre la relación crítica entre adherencia terapéutica y prevención de eventos cardiovasculares secundarios.', domain: 'Mejora de la adherencia terapéutica', cmo_pillar: 'capacidad', min_level: 3 },
-
-  // NIVEL 2 · PRIORIDAD INTERMEDIA (adiciones)
-  { code: 'L2-SFT-01', label: 'Monitorizar y tomar decisiones basadas en resultados comunicados por el paciente y medidas de experiencia del paciente utilizadas para el seguimiento.', domain: 'Seguimiento farmacoterapéutico', cmo_pillar: 'oportunidad', min_level: 2 },
-  { code: 'L2-SFT-02', label: 'Mantener contacto adicional con el paciente entre visitas programadas mediante teleasistencia y para la planificación de futuras citas.', domain: 'Seguimiento farmacoterapéutico', cmo_pillar: 'oportunidad', min_level: 2 },
-  { code: 'L2-EDU-01', label: 'Desarrollar materiales adaptados para cada paciente y cuidador, como horarios de medicación, diarios del paciente u otros recursos personalizados.', domain: 'Educación sanitaria y promoción de estilos de vida saludables', cmo_pillar: 'capacidad', min_level: 2 },
-  { code: 'L2-CRF-01', label: 'Proporcionar servicios de monitorización ambulatoria de presión arterial o automedida domiciliaria de la presión arterial.', domain: 'Cribado y detección de factores de riesgo cardiovascular', cmo_pillar: 'oportunidad', min_level: 2 },
-  { code: 'L2-CET-01', label: 'Diseñar y entregar guías personalizadas de cesación tabáquica y diarios del paciente para registrar desencadenantes y progresos.', domain: 'Cesación tabáquica', cmo_pillar: 'capacidad', min_level: 2 },
-  { code: 'L2-CET-02', label: 'Implicar a familiares o cuidadores en el plan de abandono del tabaco para favorecer un entorno de apoyo.', domain: 'Cesación tabáquica', cmo_pillar: 'oportunidad', min_level: 2 },
-  { code: 'L2-COO-01', label: 'Establecer comunicación bidireccional con el médico de atención primaria para homogeneizar objetivos.', domain: 'Coordinación con atención primaria/equipo asistencial', cmo_pillar: 'oportunidad', min_level: 2 },
-  { code: 'L2-COO-02', label: 'Abordar determinantes sociales de la salud cuando se detecten desigualdades sociales.', domain: 'Coordinación con atención primaria/equipo asistencial', cmo_pillar: 'oportunidad', min_level: 2 },
-  { code: 'L2-ADH-01', label: 'Realizar entrevistas clínicas para identificar barreras específicas a la adherencia, como polifarmacia, efectos adversos o pautas de administración complejas.', domain: 'Mejora de la adherencia terapéutica', cmo_pillar: 'motivacion', min_level: 2 },
-  { code: 'L2-ADH-02', label: 'Proporcionar calendarios de medicación y registros personalizados para simplificar la rutina de administración y reducir olvidos.', domain: 'Mejora de la adherencia terapéutica', cmo_pillar: 'capacidad', min_level: 2 },
-  { code: 'L2-ADH-03', label: 'Programar seguimientos telefónicos o recordatorios automatizados para reforzar la adherencia y monitorizar la estabilidad terapéutica entre visitas presenciales.', domain: 'Mejora de la adherencia terapéutica', cmo_pillar: 'oportunidad', min_level: 2 },
-
-  // NIVEL 1 · MÁXIMA PRIORIDAD (adiciones)
-  { code: 'L1-SFT-01', label: 'Implicar al paciente en el plan farmacoterapéutico compartiendo el progreso hacia sus objetivos clínicos y estableciendo acciones acordadas.', domain: 'Seguimiento farmacoterapéutico', cmo_pillar: 'motivacion', min_level: 1 },
-  { code: 'L1-SFT-02', label: 'Desarrollar programas estructurados para la detección, prevención y manejo de factores de riesgo específicos, como hipertensión, dislipemia o diabetes, utilizando herramientas de telemedicina.', domain: 'Seguimiento farmacoterapéutico', cmo_pillar: 'oportunidad', min_level: 1 },
-  { code: 'L1-EDU-01', label: 'Diseñar y proporcionar recursos personalizados para pacientes y cuidadores, incluidos calendarios de medicación y registros del paciente.', domain: 'Educación sanitaria y promoción de estilos de vida saludables', cmo_pillar: 'capacidad', min_level: 1 },
-  { code: 'L1-CET-01', label: 'Proporcionar consejo firme, personalizado y no enjuiciador sobre los beneficios de abandonar el tabaco, enfatizando su impacto en la reducción de eventos cardiovasculares.', domain: 'Cesación tabáquica', cmo_pillar: 'motivacion', min_level: 1 },
-  { code: 'L1-CET-02', label: 'Implicar al paciente en un plan estructurado de cesación, incluyendo la revisión y validación de tratamientos farmacológicos como terapia sustitutiva con nicotina, vareniclina o bupropión, para garantizar adecuación y seguridad.', domain: 'Cesación tabáquica', cmo_pillar: 'oportunidad', min_level: 1 },
-  { code: 'L1-CET-03', label: 'Utilizar tecnologías de la información y herramientas de telemedicina para monitorizar en tiempo real síntomas de abstinencia y proporcionar apoyo inmediato en situaciones de alto riesgo de recaída.', domain: 'Cesación tabáquica', cmo_pillar: 'oportunidad', min_level: 1 },
-  { code: 'L1-CET-04', label: 'Establecer canales de comunicación rápida con el médico de atención primaria para comunicar reacciones adversas o ajustar el tratamiento según la evolución del paciente.', domain: 'Cesación tabáquica', cmo_pillar: 'oportunidad', min_level: 1 },
-  { code: 'L1-CET-05', label: 'Planificar visitas intensivas de seguimiento cada 2-3 meses y contactos suplementarios por teleasistencia para consolidar la fase de mantenimiento.', domain: 'Cesación tabáquica', cmo_pillar: 'oportunidad', min_level: 1 },
-  { code: 'L1-COO-01', label: 'Establecer canales de comunicación rápida con el equipo asistencial para abordar reacciones adversas a medicamentos.', domain: 'Coordinación con atención primaria/equipo asistencial', cmo_pillar: 'oportunidad', min_level: 1 },
-  { code: 'L1-COO-02', label: 'Desarrollar planes de actuación asistencial interniveles para transiciones clínicas complejas.', domain: 'Coordinación con atención primaria/equipo asistencial', cmo_pillar: 'oportunidad', min_level: 1 },
-  { code: 'L1-ADH-01', label: 'Implementar sistemas personalizados de dosificación para organizar regímenes farmacoterapéuticos complejos, minimizar errores de medicación y mejorar la seguridad en pacientes con alta polimedicación.', domain: 'Mejora de la adherencia terapéutica', cmo_pillar: 'oportunidad', min_level: 1 },
-];
+// PENDIENTE DERMAPEX: catálogo de intervenciones CMO vacío a propósito.
+// El catálogo heredado de IRIS estaba redactado para riesgo cardiovascular (cribado de FRCV,
+// presión arterial, perfil lipídico, HbA1c, cesación tabáquica orientada a eventos CV…) y se ha
+// retirado. Se poblará con el catálogo oficial CMO-DERMAPEX (código, texto, pilar CMO, nivel
+// mínimo) a partir del protocolo. Mientras tanto se pueden registrar intervenciones en texto
+// libre con pilar CMO y nivel vinculado, conservando toda la trazabilidad.
+const INTERVENTION_CATALOG: InterventionCatalogItem[] = [];
 
 const CMO_PILLAR_LABEL: Record<CmoPillar, string> = {
   capacidad: 'Capacidad',
@@ -309,14 +269,14 @@ export function VisitInterventionsPage() {
 
         {cmoScore ? (
           <div className="visit-score-summary">
-            <span className="visit-context-label">Puntuación CMO-RCV guardada para esta visita</span>
+            <span className="visit-context-label">Puntuación CMO guardada para esta visita</span>
             <CmoLevelBadge level={cmoScore.priority} score={cmoScore.score} />
           </div>
         ) : (
           <Notice tone="info" className="visit-score-notice">
             <p>
               Sin puntuación CMO registrada para esta visita.{' '}
-              <Link to={`/visits/${visitId}/stratification`}>Completar estratificación</Link>
+              <Link to={`/visits/${visitId}/stratification`}>Ver datos clínicos</Link>
             </p>
             <p>
               {inheritedLevel
@@ -325,6 +285,13 @@ export function VisitInterventionsPage() {
             </p>
           </Notice>
         )}
+
+        <Notice tone="warning">
+          <p>
+            Catálogo de intervenciones CMO-DERMAPEX pendiente de definir a partir del protocolo. Registra las
+            intervenciones como «Otra intervención (texto libre)» indicando pilar CMO y nivel vinculado.
+          </p>
+        </Notice>
 
         <form className="form-grid" onSubmit={handleSubmit}>
           <label>
@@ -440,7 +407,7 @@ export function VisitInterventionsPage() {
           </ul>
         )}
         <div className="actions-inline section-footer-actions">
-          <Link to={`/visits/${visitId}/stratification`}>Volver a estratificación</Link>
+          <Link to={`/visits/${visitId}/stratification`}>Volver a datos clínicos</Link>
           {visitPatientId ? <Link to={`/patients/${visitPatientId}`}>Volver a paciente</Link> : null}
         </div>
       </section>

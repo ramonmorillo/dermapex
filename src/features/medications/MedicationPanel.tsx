@@ -62,16 +62,10 @@ const FREQUENCY_SUGGESTIONS = [
   'según necesidad',
   'otra',
 ] as const;
-const INDICATION_SUGGESTIONS = [
-  'prevención secundaria',
-  'HTA',
-  'diabetes',
-  'dislipidemia',
-  'insuficiencia cardiaca',
-  'fibrilación auricular',
-  'dolor',
-  'otra',
-] as const;
+// PENDIENTE DERMAPEX: las sugerencias de indicación heredadas de IRIS eran cardiovasculares
+// (prevención secundaria, HTA, dislipidemia, FA…) y se han retirado. No se introduce todavía una
+// lista de indicaciones/tratamientos de dermatitis atópica: se definirá con el protocolo.
+const INDICATION_SUGGESTIONS = ['otra'] as const;
 const DOSE_UNIT_OPTIONS = ['mg', 'g', 'UI', 'ml', 'comprimido(s)', 'cápsula(s)', 'gota(s)', 'puff(s)', 'otra'] as const;
 
 type DoseUnitOptionValue = (typeof DOSE_UNIT_OPTIONS)[number];
@@ -256,7 +250,7 @@ export function MedicationPanel({ visitId, patientId }: MedicationPanelProps) {
     if (searchParams.get('debug') === '1' || searchParams.get('admin') === '1') {
       return true;
     }
-    return window.localStorage.getItem('cmorcv:medication-debug') === '1';
+    return window.localStorage.getItem('dermapex:medication-debug') === '1';
   }, []);
 
   const hydrateRowsFromSnapshot = (
@@ -765,9 +759,9 @@ export function MedicationPanel({ visitId, patientId }: MedicationPanelProps) {
                   list="medication-indication-options"
                   value={row.indication}
                   onChange={(event) => handleChange(index, 'indication', event.target.value)}
-                  placeholder="Ej. prevención secundaria"
+                  placeholder="Texto libre"
                 />
-                {!isSuggestedValue(row.indication, INDICATION_SET) ? (
+                {INDICATION_SET.size > 0 && !isSuggestedValue(row.indication, INDICATION_SET) ? (
                   <span className="help-text text-warning">
                     ⚠ Indicación no estandarizada. Se permite texto libre.
                   </span>

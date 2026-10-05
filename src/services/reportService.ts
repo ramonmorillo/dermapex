@@ -1,5 +1,5 @@
 import { getVisitTypeLabel } from '../constants/enums';
-import { THESIS_INSTITUTIONAL_REFERENCE } from '../constants/institutional';
+import { PROJECT_IDENTITY, PROJECT_INSTITUTIONAL_REFERENCE } from '../constants/institutional';
 import { normalizeMedicationDisplayName } from '../features/medications/displayFormat';
 import { listVisitMedicationSnapshot } from '../features/medications/medicationsService';
 import type { PatientMedication } from '../features/medications/types';
@@ -100,28 +100,17 @@ function deriveClinicalSummary(visit: Visit, cmoScore: number | null, questionna
 
 function derivePatientRecommendations(interventions: Intervention[]): string[] {
   const items = interventions.map((item) => item.outcome?.trim()).filter((v): v is string => Boolean(v));
-  if (items.length > 0) return items.slice(0, 4);
-  return [
-    'Mantenga la medicación según la pauta indicada y evite cambios por cuenta propia.',
-    'Si presenta síntomas nuevos o efectos adversos, contacte con su centro de salud sin demora.',
-    'Acuda a la próxima consulta con una lista actualizada de toda su medicación y horarios.',
-  ];
+  // PENDIENTE DERMAPEX: IRIS añadía aquí recomendaciones por defecto redactadas para su contexto.
+  // Se retiran hasta disponer de los textos de paciente aprobados por el protocolo DERMAPEX.
+  return items.slice(0, 4);
 }
 
-function deriveCoordinationRecommendations(cmoPriority: number | null | undefined): string[] {
-  if (cmoPriority === 1) {
-    return ['Prioridad alta: coordinar revisión médica preferente en un plazo máximo de 7 días.', 'Revisar conciliación terapéutica y riesgo de eventos adversos antes del próximo contacto.'];
-  }
-
-  if (cmoPriority === 2) {
-    return ['Mantener coordinación con atención primaria para ajustar el plan farmacoterapéutico.', 'Programar reevaluación de adherencia y control clínico en el siguiente contacto.'];
-  }
-
-  if (cmoPriority === 3) {
-    return ['Continuar el circuito asistencial habitual con reevaluación periódica.', 'Sin alertas de alta prioridad; mantener monitorización en visita programada.'];
-  }
-
-  return ['No existe prioridad CMO registrada para emitir recomendaciones de coordinación específicas.'];
+// PENDIENTE DERMAPEX: IRIS derivaba aquí recomendaciones de coordinación por nivel CMO-RCV
+// (p. ej. revisión médica preferente en 7 días para nivel 1, coordinación con atención primaria).
+// Son reglas clínicas del estudio cardiovascular y se han retirado. Las recomendaciones por nivel
+// CMO-DERMAPEX se definirán a partir del protocolo.
+function deriveCoordinationRecommendations(_cmoPriority: number | null | undefined): string[] {
+  return ['Recomendaciones de coordinación asistencial por nivel CMO-DERMAPEX pendientes de definir en el protocolo.'];
 }
 
 function buildMedicationDisplayName(item: PatientMedication): string {
@@ -157,12 +146,16 @@ function mapActiveMedicationLines(items: PatientMedication[]): string[] {
 
 function getInstitutionalFooter(): string {
   return [
-    `IRIS · Proyecto de tesis doctoral: “${THESIS_INSTITUTIONAL_REFERENCE.projectTitle}”.`,
-    `Doctoranda: ${THESIS_INSTITUTIONAL_REFERENCE.doctoralCandidate}.`,
-    `Universidad: ${THESIS_INSTITUTIONAL_REFERENCE.university}.`,
-    `Referencia institucional: ${THESIS_INSTITUTIONAL_REFERENCE.siceiaCode}.`,
-  ].join(' ');
+    `${PROJECT_IDENTITY.name} · ${PROJECT_IDENTITY.subtitle}.`,
+    PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode ? `Código de aprobación CEIm: ${PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode}.` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
+
+// Bloque de firma. IRIS imprimía el nombre de la farmacéutica de la tesis; en DERMAPEX (multicéntrico)
+// la firma debe proceder del profesional responsable de la visita (pendiente: perfil/centro).
+const SIGNATURE_LINES = ['Firma profesional', 'Nombre: ______________________________', 'Farmacéutico/a responsable de la visita'];
 
 export async function loadVisitReportData(visitId: string): Promise<VisitReportLoadResult> {
   const visitResult = await getVisitById(visitId);
@@ -310,7 +303,7 @@ function buildPdfLines(template: ReportTemplate, data: PdfTemplatePayload): stri
   if (template === 'patient') {
     const patient = data as PatientVisitReportData;
     return [
-      'IRIS - INFORME DE VISITA (PACIENTE)',
+      'DERMAPEX - INFORME DE VISITA (PACIENTE)',
       '',
       `ID de visita: ${patient.visitId}`,
       `${patient.patientLabel}`,
@@ -336,9 +329,7 @@ function buildPdfLines(template: ReportTemplate, data: PdfTemplatePayload): stri
       'Seguimiento',
       patient.followUp,
       '',
-      'Firma profesional',
-      'María Romero Murillo',
-      'Farmacéutica responsable de la visita',
+      ...SIGNATURE_LINES,
       '',
       patient.institutionalFooter,
     ];
@@ -346,7 +337,7 @@ function buildPdfLines(template: ReportTemplate, data: PdfTemplatePayload): stri
 
   const clinician = data as ClinicianVisitReportData;
   return [
-    'IRIS - INFORME DE VISITA (MÉDICO)',
+    'DERMAPEX - INFORME DE VISITA (MÉDICO)',
     '',
     `ID de visita: ${clinician.visitId}`,
     `${clinician.patientLabel}`,
@@ -369,9 +360,7 @@ function buildPdfLines(template: ReportTemplate, data: PdfTemplatePayload): stri
     'Recomendaciones de coordinación asistencial',
     ...(clinician.careCoordinationRecommendations.length > 0 ? clinician.careCoordinationRecommendations.map((item) => `- ${item}`) : ['- No disponibles']),
     '',
-    'Firma profesional',
-    'María Romero Murillo',
-    'Farmacéutica responsable de la visita',
+    ...SIGNATURE_LINES,
     '',
     clinician.institutionalFooter,
   ];

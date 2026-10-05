@@ -3,15 +3,15 @@ import { useMemo, useState } from 'react';
 import { Notice } from '../../components/ui/Notice';
 import { SectionHeader } from '../../components/ui/SectionHeader';
 import { TrendDelta } from '../../components/ui/TrendDelta';
-import type { ClinicalAssessmentHistoryEntry } from '../../services/assessmentService';
 import {
   TREND_PARAMETERS,
   TREND_PARAMETER_GROUP_LABELS,
+  type TrendEntry,
   type TrendParameterKey,
 } from './parameterCatalog';
 
 type BaselineTrendPanelProps = {
-  entries: ClinicalAssessmentHistoryEntry[];
+  entries: TrendEntry[];
   warning?: string | null;
 };
 
@@ -29,7 +29,7 @@ const GRID_COLOR = '#dde5ea';
 const AXIS_TEXT_COLOR = '#5c717a';
 const MAX_DIRECT_LABELS = 8;
 
-function formatVisitLabel(entry: ClinicalAssessmentHistoryEntry): string {
+function formatVisitLabel(entry: TrendEntry): string {
   const date = entry.visit_date ?? entry.scheduled_date;
   if (date) return date;
   return entry.visit_number ? `Visita ${entry.visit_number}` : 'Visita';
@@ -39,7 +39,7 @@ function formatValue(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
-function buildPoints(entries: ClinicalAssessmentHistoryEntry[], key: TrendParameterKey): TrendPoint[] {
+function buildPoints(entries: TrendEntry[], key: TrendParameterKey): TrendPoint[] {
   return entries
     .map((entry) => ({
       visitId: entry.visit_id,
@@ -50,6 +50,26 @@ function buildPoints(entries: ClinicalAssessmentHistoryEntry[], key: TrendParame
 }
 
 export function BaselineTrendPanel({ entries, warning }: BaselineTrendPanelProps) {
+  // Sin catálogo de parámetros (pendiente de protocolo DERMAPEX) no hay nada que representar.
+  if (TREND_PARAMETERS.length === 0) {
+    return (
+      <section className="card" aria-labelledby="baseline-trend-title">
+        <SectionHeader
+          id="baseline-trend-title"
+          title="Evolución de parámetros clínicos"
+          description="Valores registrados en cada visita, en orden cronológico."
+        />
+        <Notice tone="info" className="trend-warning">
+          Pendiente de definir las variables clínicas longitudinales de DERMAPEX a partir del protocolo.
+        </Notice>
+      </section>
+    );
+  }
+
+  return <BaselineTrendChartPanel entries={entries} warning={warning} />;
+}
+
+function BaselineTrendChartPanel({ entries, warning }: BaselineTrendPanelProps) {
   const [selectedKey, setSelectedKey] = useState<TrendParameterKey>(TREND_PARAMETERS[0].key);
   const [showTable, setShowTable] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -85,7 +105,7 @@ export function BaselineTrendPanel({ entries, warning }: BaselineTrendPanelProps
     <section className="card" aria-labelledby="baseline-trend-title">
       <SectionHeader
         id="baseline-trend-title"
-        title="Evolución de parámetros basales"
+        title="Evolución de parámetros clínicos"
         description="Valores registrados en cada visita, en orden cronológico."
       />
 
@@ -101,8 +121,8 @@ export function BaselineTrendPanel({ entries, warning }: BaselineTrendPanelProps
               setHoverIndex(null);
             }}
           >
-            {(['vitals', 'labs', 'risk'] as const).map((group) => (
-              <optgroup key={group} label={TREND_PARAMETER_GROUP_LABELS[group]}>
+            {Array.from(new Set(TREND_PARAMETERS.map((p) => p.group))).map((group) => (
+              <optgroup key={group} label={TREND_PARAMETER_GROUP_LABELS[group] ?? group}>
                 {TREND_PARAMETERS.filter((p) => p.group === group).map((p) => (
                   <option key={p.key} value={p.key}>{p.label} ({p.unit})</option>
                 ))}

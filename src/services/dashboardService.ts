@@ -85,7 +85,7 @@ export async function loadDashboardData(): Promise<{ data: DashboardData | null;
     supabase.from('patients').select('id,age_at_inclusion,sex'),
     supabase
       .from('visits')
-      .select('id,patient_id,visit_type,visit_date,scheduled_date,visit_status,created_at,cmo_scores(id,score,priority),clinical_assessments(id),interventions(id)'),
+      .select('id,patient_id,visit_type,visit_date,scheduled_date,visit_status,created_at,cmo_scores(id,score,priority),interventions(id)'),
     supabase
       .from('cmo_scores')
       .select('score,visits!inner(visit_type)'),
@@ -154,7 +154,6 @@ export async function loadDashboardData(): Promise<{ data: DashboardData | null;
     visit_status: string | null;
     created_at: string | null;
     cmo_scores: ({ id: string } & DashboardScore) | Array<{ id: string } & DashboardScore> | null;
-    clinical_assessments: { id: string } | Array<{ id: string }> | null;
     interventions: { id: string } | Array<{ id: string }> | null;
   }>;
   const scoresByVisitType = (scoresByVisitTypeRes.data ?? []) as Array<{
@@ -177,12 +176,12 @@ export async function loadDashboardData(): Promise<{ data: DashboardData | null;
       continue;
     }
 
+    // DERMAPEX: la tabla clinical_assessments (RCV) ya no existe; un paciente se considera
+    // estratificado en basal solo si su visita basal tiene puntuación CMO registrada.
+    // Revisar cuando exista el modelo de variables clínicas DERMAPEX.
     const scoreRows = Array.isArray(visit.cmo_scores) ? visit.cmo_scores : (visit.cmo_scores ? [visit.cmo_scores] : []);
-    const assessmentRows = Array.isArray(visit.clinical_assessments)
-      ? visit.clinical_assessments
-      : (visit.clinical_assessments ? [visit.clinical_assessments] : []);
 
-    if (scoreRows.length > 0 || assessmentRows.length > 0) {
+    if (scoreRows.length > 0) {
       baselineStratifiedPatientIds.add(visit.patient_id);
     }
   }
@@ -194,7 +193,7 @@ export async function loadDashboardData(): Promise<{ data: DashboardData | null;
 
   if (baselineStratifiedPatientIds.size === 0 && allPatients.length > 0) {
     kpiFallbackNotes.push(
-      "KPI 'Pacientes sin estratificación basal' calculado con fallback: se considera estratificado un paciente con visita basal y score CMO o evaluación clínica registrada.",
+      "KPI 'Pacientes sin estratificación basal': se considera estratificado un paciente con visita basal y score CMO registrado (motor CMO-DERMAPEX pendiente de implementación).",
     );
   }
 

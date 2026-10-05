@@ -1,4 +1,4 @@
-import { THESIS_INSTITUTIONAL_REFERENCE, THESIS_SHORT_FOOTER } from '../../constants/institutional';
+import { PENDING_PROTOCOL_LABEL, PROJECT_INSTITUTIONAL_REFERENCE, PROJECT_SHORT_FOOTER } from '../../constants/institutional';
 
 type InstitutionalReferenceProps = {
   compact?: boolean;
@@ -6,25 +6,23 @@ type InstitutionalReferenceProps = {
 
 export function InstitutionalReference({ compact = false }: InstitutionalReferenceProps) {
   if (compact) {
-    return <p className="institutional-footer">{THESIS_SHORT_FOOTER}</p>;
+    return <p className="institutional-footer">{PROJECT_SHORT_FOOTER}</p>;
   }
 
   return (
     <section className="card institutional-block" aria-label="Referencia institucional">
-      <h2>Referencia institucional · IRIS</h2>
+      <h2>Referencia institucional · DERMAPEX</h2>
       <p>
-        Proyecto universitario vinculado:
+        Proyecto:
         <br />
-        <strong>“{THESIS_INSTITUTIONAL_REFERENCE.projectTitle}”</strong>
+        <strong>{PROJECT_INSTITUTIONAL_REFERENCE.projectTitle}</strong>
       </p>
       <p>
-        <strong>Doctoranda:</strong> {THESIS_INSTITUTIONAL_REFERENCE.doctoralCandidate}
+        <strong>Promotor:</strong> {PROJECT_INSTITUTIONAL_REFERENCE.sponsor ?? PENDING_PROTOCOL_LABEL}
         <br />
-        <strong>Directores de tesis:</strong> {THESIS_INSTITUTIONAL_REFERENCE.thesisDirectors}
+        <strong>Investigador principal:</strong> {PROJECT_INSTITUTIONAL_REFERENCE.principalInvestigator ?? PENDING_PROTOCOL_LABEL}
         <br />
-        <strong>Universidad:</strong> {THESIS_INSTITUTIONAL_REFERENCE.university}
-        <br />
-        <strong>Código de aprobación SICEIA:</strong> {THESIS_INSTITUTIONAL_REFERENCE.siceiaCode}
+        <strong>Código de aprobación CEIm:</strong> {PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode ?? PENDING_PROTOCOL_LABEL}
       </p>
     </section>
   );
