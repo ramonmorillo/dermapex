@@ -28,6 +28,26 @@ En Supabase → **Authentication**:
    - **Redirect URLs → Add URL**: `https://ramonmorillo.github.io/dermapex/`
    Sin esto, los enlaces de invitación y de recuperación de contraseña apuntan a `localhost` y no funcionan.
 
+## 1 bis. Plantillas de correo (obligatorio con correo corporativo)
+
+Los filtros antiphishing del correo corporativo (p. ej. `@juntadeandalucia.es`) abren automáticamente los enlaces de los correos y **consumen el enlace de un solo uso** antes que el destinatario (error «Email link is invalid or has expired»). Por eso los correos deben llevar a una página de DERMAPEX con un botón «Continuar», y el token solo se canjea al pulsarlo.
+
+Supabase → **Authentication → Emails → Templates**:
+
+- **Invite user** → sustituir el enlace por:
+  ```html
+  <h2>Invitación a DERMAPEX</h2>
+  <p>Has sido invitado/a al estudio DERMAPEX.</p>
+  <p><a href="{{ .SiteURL }}#/auth/confirm?token_hash={{ .TokenHash }}&type=invite">Aceptar invitación y crear contraseña</a></p>
+  ```
+- **Reset password** → sustituir el enlace por:
+  ```html
+  <h2>DERMAPEX · Recuperar contraseña</h2>
+  <p><a href="{{ .SiteURL }}#/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">Establecer una nueva contraseña</a></p>
+  ```
+
+`{{ .SiteURL }}` debe ser `https://ramonmorillo.github.io/dermapex/` (paso 1).
+
 ## 2. Aplicar las migraciones
 
 Opción A — **SQL Editor** (sin instalar nada):

@@ -1,4 +1,4 @@
-import type { AuthChangeEvent, AuthError, Session, Subscription, User } from '@supabase/supabase-js';
+import type { AuthChangeEvent, AuthError, EmailOtpType, Session, Subscription, User } from '@supabase/supabase-js';
 
 import { supabase } from '../lib/supabase';
 
@@ -84,4 +84,18 @@ export async function requestPasswordReset(email: string, redirectTo: string): P
 
   const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
   return { error };
+}
+
+/**
+ * Canjea el token de un enlace de correo (invitación o recuperación). Se llama solo tras una acción
+ * explícita de la persona: los filtros antiphishing del correo abren los enlaces automáticamente y,
+ * si el token se canjeara al cargar la página, lo consumirían antes que el destinatario.
+ */
+export async function verifyEmailLinkToken(tokenHash: string, type: EmailOtpType): Promise<AuthResult> {
+  if (!supabase) {
+    return { user: null, session: null, error: new Error('Supabase no está configurado en variables de entorno.') };
+  }
+
+  const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+  return { user: data.user, session: data.session, error };
 }

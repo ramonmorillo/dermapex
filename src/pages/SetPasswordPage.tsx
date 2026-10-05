@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ErrorState } from '../components/common/ErrorState';
 import { PublicFooter } from '../components/public/PublicFooter';
@@ -19,8 +19,9 @@ type PageState = 'checking' | 'ready' | 'no-session';
  */
 export function SetPasswordPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [state, setState] = useState<PageState>('checking');
-  const [isInvite, setIsInvite] = useState(false);
+  const [isInvite, setIsInvite] = useState(searchParams.get('mode') === 'invite');
   const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');

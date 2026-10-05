@@ -2,6 +2,7 @@ import { createHashRouter, Navigate } from 'react-router-dom';
 
 import { AppShell } from './components/layout/AppShell';
 import { BaselineStratificationPage } from './pages/BaselineStratificationPage';
+import { ConfirmEmailLinkPage } from './pages/ConfirmEmailLinkPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { NewPatientPage } from './pages/NewPatientPage';
@@ -26,6 +27,10 @@ export const router = createHashRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    path: '/auth/confirm',
+    element: <ConfirmEmailLinkPage />,
   },
   {
     path: '/set-password',
