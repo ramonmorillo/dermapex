@@ -78,3 +78,13 @@
 | Catálogos vacíos | `intervention_catalog`, `cmo_variable_catalog` y `questionnaire_measurement_map` sin datos: se cargan desde el protocolo. Consecuencia: **los cuestionarios no se pueden guardar** hasta configurar la batería DERMAPEX. |
 
 No implementado (bloqueado por protocolo): tabla clínica de dermatitis atópica, calendario de visitas definitivo, catálogo de intervenciones, variables CMO-DERMAPEX.
+
+## 6. Implementado el 2026-10-06 (estratificación CMO-DERMAPEX)
+
+Migraciones `20261006100000`-`20261006100300` (pruebas en `db-tests/20_cmo_stratification.sql`):
+`centers.study_arm` con trigger de inmutabilidad, `cmo_model_versions`, catálogo de variables
+versionado e inmutable (28 filas), columnas nuevas en `cmo_scores`, función
+`save_cmo_stratification` (única vía de escritura, verificada en servidor), RLS por cohorte y vistas
+enmascaradas, catálogo de intervenciones literal (20 tarjetas) y vínculo `interventions → intervention_catalog`.
+Detalle en `DERMAPEX_CMO_ENGINE.md`. **Pendiente de aplicar** al proyecto Supabase; tras aplicarlas,
+coordinación debe asignar `study_arm` a cada centro existente.

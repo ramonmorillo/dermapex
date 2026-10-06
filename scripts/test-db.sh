@@ -2,7 +2,7 @@
 # Valida las migraciones de DERMAPEX en una base de datos PostgreSQL LOCAL Y DESECHABLE:
 #   1) simula lo mínimo de Supabase (db-tests/00_local_supabase_stubs.sql),
 #   2) aplica supabase/migrations/*.sql en orden,
-#   3) ejecuta la batería de RLS/integridad (db-tests/10_*.sql).
+#   3) ejecuta las baterías de RLS/integridad (db-tests/[1-9]*.sql, en orden).
 #
 # Uso: DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dermapex_test scripts/test-db.sh
 #
@@ -35,7 +35,7 @@ for migration in "$ROOT"/supabase/migrations/*.sql; do
   "${PSQL[@]}" -f "$migration"
 done
 
-for test_file in "$ROOT"/db-tests/1*.sql; do
+for test_file in "$ROOT"/db-tests/[1-9]*.sql; do
   echo "→ Pruebas $(basename "$test_file")"
   "${PSQL[@]}" -f "$test_file"
 done

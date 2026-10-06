@@ -12,15 +12,19 @@ export type Intervention = {
   linked_to_cmo_level: number | null;
   outcome: string | null;
   notes: string | null;
+  /** Tarjeta del catálogo CMO (NULL = «Otra intervención»). Código, versión, texto y pilar los sella la BD. */
+  catalog_item_id?: string | null;
+  catalog_code?: string | null;
+  catalog_version?: string | null;
   created_at?: string;
   updated_at?: string;
 };
 
-export type NewInterventionInput = Omit<Intervention, 'id' | 'created_at' | 'updated_at'>;
-export type UpdateInterventionInput = Partial<Omit<Intervention, 'id' | 'visit_id' | 'created_at' | 'updated_at'>>;
+export type NewInterventionInput = Omit<Intervention, 'id' | 'created_at' | 'updated_at' | 'catalog_code' | 'catalog_version'>;
+export type UpdateInterventionInput = Partial<Omit<Intervention, 'id' | 'visit_id' | 'created_at' | 'updated_at' | 'catalog_code' | 'catalog_version'>>;
 
 const INTERVENTION_SELECT =
-  'id,visit_id,intervention_type,intervention_domain,priority_level,delivered,linked_to_cmo_level,outcome,notes,created_at,updated_at';
+  'id,visit_id,intervention_type,intervention_domain,priority_level,delivered,linked_to_cmo_level,outcome,notes,catalog_item_id,catalog_code,catalog_version,created_at,updated_at';
 
 function extractErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {

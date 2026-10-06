@@ -1,16 +1,18 @@
 import { CMO_LEVEL_META, toCmoLevel } from '../../constants/cmoLevels';
-import { LEVEL_THRESHOLDS } from '../../services/cmoScoringEngine';
+import { CMO_DECLARED_MAX_SCORE, LEVEL_THRESHOLDS } from '../../services/cmoScoringEngine';
 
 type CmoResultPanelProps = {
   score: number;
   level: unknown;
   statusText: string;
   sticky?: boolean;
+  /** Regla especial (embarazo/deseo gestacional) aplicada: el nivel no deriva de la puntuación. */
+  specialRuleApplied?: boolean;
 };
 
 // Resultado de estratificación. La escala se dibuja de menor (izquierda, N3) a mayor
 // complejidad (derecha, N1) con los umbrales reales del motor; no se recalcula nada aquí.
-export function CmoResultPanel({ score, level, statusText, sticky = false }: CmoResultPanelProps) {
+export function CmoResultPanel({ score, level, statusText, sticky = false, specialRuleApplied = false }: CmoResultPanelProps) {
   const value = toCmoLevel(level);
   const meta = value ? CMO_LEVEL_META[value] : null;
 
@@ -18,7 +20,7 @@ export function CmoResultPanel({ score, level, statusText, sticky = false }: Cmo
     .map((item) => item.minScore)
     .sort((a, b) => a - b);
   const highest = cutoffs[cutoffs.length - 1] ?? 0;
-  const scaleMax = Math.max(highest + Math.round(highest * 0.35), score + 2, 1);
+  const scaleMax = Math.max(Math.min(CMO_DECLARED_MAX_SCORE, highest + Math.round(highest * 0.35)), score + 2, 1);
   const position = (points: number) => `${Math.min(100, Math.max(0, (points / scaleMax) * 100))}%`;
   const bounds = [0, ...cutoffs, scaleMax];
   const segmentClass = ['seg-cmo-3', 'seg-cmo-2', 'seg-cmo-1'];
@@ -36,7 +38,7 @@ export function CmoResultPanel({ score, level, statusText, sticky = false }: Cmo
         <div>
           <span className="cmo-result-eyebrow">Nivel CMO</span>
           <span className="cmo-result-label">{meta ? meta.label : 'Sin nivel'}</span>
-          {meta ? <span className="cmo-result-complexity">{meta.complexity}</span> : null}
+          {meta ? <span className="cmo-result-complexity">{specialRuleApplied ? 'Por regla especial: embarazo o deseo gestacional' : meta.criterion}</span> : null}
         </div>
       </div>
 

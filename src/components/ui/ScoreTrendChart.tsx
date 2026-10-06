@@ -29,6 +29,8 @@ export function ScoreTrendChart({ points }: { points: ScorePoint[] }) {
       from: Math.max(band.minScore, yMin),
       to: index === 0 ? yMax : sorted[index - 1].minScore,
     }));
+  // Nivel 3: por debajo del menor umbral (LEVEL_THRESHOLDS solo lista los umbrales de N1 y N2).
+  if (lowestCut > yMin) bands.push({ level: 3, from: yMin, to: lowestCut });
 
   return (
     <svg

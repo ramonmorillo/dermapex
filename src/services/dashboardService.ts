@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { type CmoPillar } from '../constants/interventionCatalog';
+import { type CmoPillar } from './interventionCatalogService';
 import { calculateLongitudinalDashboardMetrics, type DashboardScore } from './dashboardAnalytics';
 
 export type DashboardData = {
@@ -193,7 +193,7 @@ export async function loadDashboardData(): Promise<{ data: DashboardData | null;
 
   if (baselineStratifiedPatientIds.size === 0 && allPatients.length > 0) {
     kpiFallbackNotes.push(
-      "KPI 'Pacientes sin estratificación basal': se considera estratificado un paciente con visita basal y score CMO registrado (motor CMO-DERMAPEX pendiente de implementación).",
+      "KPI 'Pacientes sin estratificación basal': se considera estratificado un paciente con visita basal y puntuación CMO registrada. En centros de la cohorte estándar solo coordinación ve las puntuaciones, por lo que este indicador no es interpretable para sus investigadores.",
     );
   }
 

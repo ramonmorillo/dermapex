@@ -31,11 +31,11 @@ Leyenda de dependencias: **[P]** protocolo/CRD · **[I]** instrumento validado (
 
 ## 3. Estratificación CMO-DERMAPEX
 
-- Falta: variables del modelo, puntuación de cada categoría, umbrales de nivel, número y semántica de niveles, regla ante datos ausentes, versión del modelo. [P]
-- Implementar en `src/services/cmoScoringEngine.ts` (hoy solo tipos + `LEVEL_THRESHOLDS = []`) una función pura `scoreCmo(input)` con **tests unitarios por variable y por umbral** construidos desde la tabla del protocolo.
-- Poblar `cmo_variable_catalog`; añadir `engine_version` a `cmo_scores`.
-- Reconstruir la página de estratificación reutilizando `CmoResultPanel` y `ScoreTrendChart` (ya toleran los umbrales nuevos).
-- Decidir si el nivel se recalcula en cada visita de seguimiento o solo en basal. [P]
+- ✅ Hecho (2026-10-06): modelo CMO-MAPEX inmunomediadas, subtipo dermatológico, sin cambios (fuente `cmoinmunomediadas@227e444`), motor `scoreCmo` (`cmo-dermapex-1.0.0+src.227e444`) equivalente a la fuente, catálogo de variables versionado e inmutable, guardado atómico verificado en servidor, cohortes por centro (`centers.study_arm`) con visibilidad restringida en BD, página `/visits/:visitId/stratification`, historial en la ficha y exportación CSV/XLSX/SPSS. Detalle y trazabilidad: `DERMAPEX_CMO_ENGINE.md`.
+- **Validar (IP):** decisiones D1-D8 y A1-A6 (`DERMAPEX_CMO_ENGINE.md` §4) y discrepancias DISC-1…DISC-6 (§5), en particular el máximo del bloque demográfico (DISC-1) y el criterio de medicamento reciente (DISC-2). [P]
+- **Aplicar** las migraciones `20261006*` al proyecto Supabase (con revisión explícita) y **asignar la cohorte** (`study_arm`) a cada centro existente antes de incluir pacientes. [T]
+- Pendiente: redacción operativa de criterios para consulta (los actuales son literales de la fuente, pensados para extracción desde texto; DISC-4). [P]
+- Pendiente: calendario de visitas (§12) y su relación con los motivos de estratificación. [P]
 
 ## 4. IEXPAC
 
@@ -71,8 +71,9 @@ Leyenda de dependencias: **[P]** protocolo/CRD · **[I]** instrumento validado (
 
 ## 11. Intervenciones CMO
 
-- Falta: catálogo CMO-DERMAPEX (código, texto, pilar C/M/O, nivel mínimo, dominio). [P]
-- Cargarlo preferentemente en `intervention_catalog` (versionado en BD) y que `VisitInterventionsPage.tsx` lo lea de ahí en lugar del array local (hoy vacío). Mantener «Otra intervención» para casos no catalogados.
+- ✅ Hecho (2026-10-06): `intervention_catalog` con las 20 tarjetas literales de la fuente (`cmoinmunomediadas@227e444-draft`, dimensión C/M/O, niveles recomendados, categoría, tier), `recommended_levels` como fuente de verdad (D8), `VisitInterventionsPage` lee de la BD, filtra por nivel vigente con «ver todas», muestra el paquete mínimo del protocolo y guarda código y versión de catálogo. Solo centros `cmo`. «Otra intervención (texto libre)» se mantiene.
+- **Validar (IP):** tabla de correspondencia tarjeta → paquete del protocolo (`DERMAPEX_CMO_ENGINE.md` §6), 7 tarjetas sin correspondencia clara y 7 acciones del protocolo sin tarjeta. Al validarlo, publicar una versión nueva del catálogo (sin sufijo `-draft`) en una migración nueva. [P]
+- Pendiente: decidir si el brazo estándar debe documentar actuaciones de AF estándar (hoy bloqueado; A6). [P]
 
 ## 12. Visitas basal, 6 y 12 meses
 
@@ -89,7 +90,7 @@ Leyenda de dependencias: **[P]** protocolo/CRD · **[I]** instrumento validado (
 ## 14. Informes
 
 - Motor PDF en navegador conservado. Falta: contenido de los informes paciente/clínico aprobado, textos de recomendaciones, firma (nombre del profesional desde perfil/centro). [P]
-- Corregir el defecto heredado documentado en la auditoría (R10: se imprime la puntuación como «prioridad»). [T]
+- ✅ Corregido R10 (la puntuación se imprimía como «prioridad»); etiquetas de nivel unificadas en `constants/cmoLevels.ts`. Los informes de centros de la cohorte estándar no incluyen resultados CMO.
 
 ## 15. Exportación de base de investigación
 

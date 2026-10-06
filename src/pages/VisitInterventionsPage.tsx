@@ -4,11 +4,26 @@ import { Link, useParams } from 'react-router-dom';
 import { ErrorState } from '../components/common/ErrorState';
 import { VisitTabs } from '../components/common/VisitTabs';
 import { CmoLevelBadge } from '../components/ui/CmoLevelBadge';
+import { LoadingState } from '../components/ui/LoadingState';
 import { Notice } from '../components/ui/Notice';
+import { ProtocolPackage } from '../components/ui/ProtocolPackage';
 import { SectionHeader } from '../components/ui/SectionHeader';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { CMO_LEVEL_META } from '../constants/cmoLevels';
-import { getCmoScoreByVisit, listCmoScoresByPatient, type CmoScoreRecord } from '../services/cmoScoreService';
+import { CMO_LEVEL_META, toCmoLevel } from '../constants/cmoLevels';
+import {
+  INTERVENTION_CATALOG_VERSION,
+  INTERVENTION_CATEGORY_LABEL,
+  INTERVENTION_TIER_LABEL,
+  STUDY_ARM_LABEL,
+} from '../constants/dermapexStudyConfig';
+import type { CmoLevel } from '../services/cmoScoringEngine';
+import { getCmoScoreByVisit, listCmoScoresByPatient } from '../services/cmoScoreService';
+import {
+  filterCatalogForLevel,
+  listInterventionCatalog,
+  type CmoPillar,
+  type InterventionCatalogItem,
+} from '../services/interventionCatalogService';
 import {
   createIntervention,
   updateIntervention,
@@ -16,29 +31,11 @@ import {
   type Intervention,
   type PriorityLevel,
 } from '../services/interventionService';
+import { getPatientById, type Patient } from '../services/patientService';
 import { getVisitById } from '../services/visitService';
 import { pickReferenceStratification } from '../utils/referenceStratification';
 
-type CmoPillar = 'capacidad' | 'motivacion' | 'oportunidad';
-type CmoLevel = 1 | 2 | 3;
-
-type InterventionCatalogItem = {
-  code: string;
-  label: string;
-  domain: string;
-  cmo_pillar: CmoPillar;
-  min_level: CmoLevel;
-};
-
 const OTHER_INTERVENTION_CODE = '__other__';
-
-// PENDIENTE DERMAPEX: catálogo de intervenciones CMO vacío a propósito.
-// El catálogo heredado de IRIS estaba redactado para riesgo cardiovascular (cribado de FRCV,
-// presión arterial, perfil lipídico, HbA1c, cesación tabáquica orientada a eventos CV…) y se ha
-// retirado. Se poblará con el catálogo oficial CMO-DERMAPEX (código, texto, pilar CMO, nivel
-// mínimo) a partir del protocolo. Mientras tanto se pueden registrar intervenciones en texto
-// libre con pilar CMO y nivel vinculado, conservando toda la trazabilidad.
-const INTERVENTION_CATALOG: InterventionCatalogItem[] = [];
 
 const CMO_PILLAR_LABEL: Record<CmoPillar, string> = {
   capacidad: 'Capacidad',
@@ -52,6 +49,14 @@ const CMO_PILLAR_OPTIONS: Array<{ value: CmoPillar; label: string }> = [
   { value: 'oportunidad', label: 'Oportunidad' },
 ];
 
+// Prioridad de la intervención (no es el nivel CMO; se propone a partir de él).
+const INTERVENTION_PRIORITY_LABEL: Record<PriorityLevel, string> = {
+  high: 'Alta',
+  medium: 'Media',
+  low: 'Baja',
+};
+
+const CMO_PRIORITY_TO_INTERVENTION_PRIORITY: Record<CmoLevel, PriorityLevel> = { 1: 'high', 2: 'medium', 3: 'low' };
 
 function normalizeCmoPillar(value: string | null | undefined): CmoPillar | '' {
   if (!value) return '';
@@ -63,131 +68,124 @@ function normalizeCmoPillar(value: string | null | undefined): CmoPillar | '' {
 }
 
 function toDbCmoPillar(value: CmoPillar | ''): string | null {
-  if (!value) return null;
-  return CMO_PILLAR_LABEL[value];
+  return value ? CMO_PILLAR_LABEL[value] : null;
 }
 
-function findCatalogItemForIntervention(item: Intervention): InterventionCatalogItem | undefined {
-  return INTERVENTION_CATALOG.find((catalogItem) => catalogItem.label === item.intervention_type);
-}
+type FormState = {
+  catalog_choice: string;
+  cmo_pillar: CmoPillar | '';
+  priority_level: PriorityLevel;
+  delivered: boolean;
+  linked_to_cmo_level: string;
+  outcome: string;
+  notes: string;
+};
 
-function getInterventionPillar(item: Intervention): CmoPillar | '' {
-  const savedDomainPillar = normalizeCmoPillar(item.intervention_domain);
-  if (savedDomainPillar) return savedDomainPillar;
-  return '';
-}
+const EMPTY_FORM: FormState = {
+  catalog_choice: '',
+  cmo_pillar: '',
+  priority_level: 'low',
+  delivered: true,
+  linked_to_cmo_level: '',
+  outcome: '',
+  notes: '',
+};
 
+/**
+ * Intervenciones CMO de la visita. Solo en centros de la cohorte CMO (D5; la base de datos rechaza
+ * el registro en centros estándar). El catálogo se lee de intervention_catalog (versión
+ * INTERVENTION_CATALOG_VERSION, D7) y se filtra por los niveles recomendados del nivel vigente (D8),
+ * con opción «ver todas». Junto al catálogo se muestra el paquete mínimo del protocolo del nivel.
+ */
 export function VisitInterventionsPage() {
   const { visitId = '' } = useParams();
+  const [patient, setPatient] = useState<Patient | null>(null);
   const [visitPatientId, setVisitPatientId] = useState('');
-  const [cmoScore, setCmoScore] = useState<CmoScoreRecord | null>(null);
-  const [inheritedLevel, setInheritedLevel] = useState<{ level: CmoLevel; date: string | null } | null>(null);
+  const [currentLevel, setCurrentLevel] = useState<{ level: CmoLevel; score: number; date: string | null; own: boolean } | null>(null);
+  const [catalog, setCatalog] = useState<InterventionCatalogItem[]>([]);
+  const [showAll, setShowAll] = useState(false);
   const [items, setItems] = useState<Intervention[]>([]);
-  const [form, setForm] = useState({
-    intervention_code: '',
-    intervention_type: '',
-    intervention_domain: '',
-    cmo_pillar: '' as CmoPillar | '',
-    priority_level: 'low' as PriorityLevel,
-    delivered: true,
-    // No default level: it must come from the visit's (or latest prior) stratification or be chosen explicitly.
-    linked_to_cmo_level: '',
-    outcome: '',
-    notes: '',
-  });
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [otherIntervention, setOtherIntervention] = useState('');
   const [editingInterventionId, setEditingInterventionId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const cmoPriorityToInterventionPriority: Record<CmoLevel, PriorityLevel> = {
-    1: 'high',
-    2: 'medium',
-    3: 'low',
-  };
-
-  const interventionPriorityLabel: Record<PriorityLevel, string> = {
-    high: '1 · Prioridad',
-    medium: '2 · Intermedio',
-    low: '3 · Basal',
-  };
-
-  useEffect(() => {
-    void (async () => {
-      const { data: visitScore } = await getCmoScoreByVisit(visitId);
-      let data = visitScore;
-      if (visitScore) {
-        setCmoScore(visitScore);
-      } else {
-        // Visit without its own score: the patient's current level is the latest prior stratification.
-        const { data: visit } = await getVisitById(visitId);
-        if (!visit?.patient_id) return;
-        const { data: history } = await listCmoScoresByPatient(visit.patient_id);
-        const reference = pickReferenceStratification(history, visit.visit_date ?? visit.scheduled_date);
-        if (!reference) return;
-        data = reference;
-        setInheritedLevel({ level: Number(reference.priority) as CmoLevel, date: reference.visit_date ?? reference.scheduled_date });
-      }
-      if (data) {
-        const level = Number(data.priority) as CmoLevel;
-        setForm({
-          intervention_code: '',
-          intervention_type: '',
-          intervention_domain: '',
-          cmo_pillar: '',
-          priority_level: cmoPriorityToInterventionPriority[level] ?? 'low',
-          delivered: true,
-          linked_to_cmo_level: String(level),
-          outcome: '',
-          notes: '',
-        });
-      }
-    })();
-  }, [visitId]);
-
-  const linkedLevel = Number(form.linked_to_cmo_level) as CmoLevel;
-
-  const visibleCatalog = useMemo(() => {
-    const uniqueByCode = INTERVENTION_CATALOG.reduce<Map<string, InterventionCatalogItem>>((acc, item) => {
-      if (!acc.has(item.code)) acc.set(item.code, item);
-      return acc;
-    }, new Map());
-
-    return Array.from(uniqueByCode.values()).filter((item) => item.min_level >= linkedLevel);
-  }, [linkedLevel]);
-
   async function loadInterventions() {
-    const [visitRes, listRes] = await Promise.all([getVisitById(visitId), listInterventionsByVisit(visitId)]);
-    if (visitRes.data?.patient_id) setVisitPatientId(visitRes.data.patient_id);
+    const listRes = await listInterventionsByVisit(visitId);
     setItems(listRes.data);
-    setErrorMessage(listRes.errorMessage);
+    if (listRes.errorMessage) setErrorMessage(listRes.errorMessage);
   }
 
   useEffect(() => {
-    void loadInterventions();
+    let mounted = true;
+    void (async () => {
+      setLoading(true);
+      const { data: visit, errorMessage: visitError } = await getVisitById(visitId);
+      if (!mounted) return;
+      if (!visit) {
+        setErrorMessage(visitError ?? 'Visita no encontrada.');
+        setLoading(false);
+        return;
+      }
+      setVisitPatientId(visit.patient_id);
+      const { data: patientData } = await getPatientById(visit.patient_id);
+      if (!mounted) return;
+      setPatient(patientData);
+
+      if (patientData?.center?.study_arm === 'cmo') {
+        const [{ data: visitScore }, catalogResult] = await Promise.all([
+          getCmoScoreByVisit(visitId),
+          listInterventionCatalog(INTERVENTION_CATALOG_VERSION),
+        ]);
+        let reference: { level: CmoLevel; score: number; date: string | null; own: boolean } | null = null;
+        if (visitScore) {
+          reference = { level: visitScore.priority, score: Number(visitScore.score), date: visit.visit_date ?? visit.scheduled_date, own: true };
+        } else {
+          // Visita sin estratificación propia: nivel vigente = última estratificación previa.
+          const { data: history } = await listCmoScoresByPatient(visit.patient_id);
+          const prior = pickReferenceStratification(history, visit.visit_date ?? visit.scheduled_date);
+          const level = toCmoLevel(prior?.priority);
+          if (prior && level) reference = { level, score: Number(prior.score), date: prior.visit_date ?? prior.scheduled_date, own: false };
+        }
+        if (!mounted) return;
+        setCatalog(catalogResult.data);
+        if (catalogResult.errorMessage) setErrorMessage(catalogResult.errorMessage);
+        setCurrentLevel(reference);
+        if (reference) {
+          setForm({ ...EMPTY_FORM, priority_level: CMO_PRIORITY_TO_INTERVENTION_PRIORITY[reference.level], linked_to_cmo_level: String(reference.level) });
+        }
+        await loadInterventions();
+      }
+      if (mounted) setLoading(false);
+    })();
+    return () => {
+      mounted = false;
+    };
   }, [visitId]);
 
-  const handleInterventionSelection = (selectedCode: string) => {
-    if (selectedCode === OTHER_INTERVENTION_CODE) {
-      setForm((prev) => ({
-        ...prev,
-        intervention_code: selectedCode,
-        intervention_type: '',
-        intervention_domain: '',
-        cmo_pillar: '',
-      }));
+  const visibleCatalog = useMemo(
+    () => filterCatalogForLevel(catalog, currentLevel?.level ?? null, showAll),
+    [catalog, currentLevel, showAll],
+  );
+
+  const catalogById = useMemo(() => new Map(catalog.map((item) => [item.id, item])), [catalog]);
+
+  const handleCatalogSelection = (choice: string) => {
+    if (choice === OTHER_INTERVENTION_CODE || choice === '') {
+      setForm((prev) => ({ ...prev, catalog_choice: choice, cmo_pillar: '' }));
       return;
     }
-
-    const selected = visibleCatalog.find((item) => item.code === selectedCode);
-    setForm((prev) => ({
-      ...prev,
-      intervention_code: selectedCode,
-      intervention_type: selected?.label ?? '',
-      intervention_domain: selected?.cmo_pillar ? toDbCmoPillar(selected.cmo_pillar) ?? '' : '',
-      cmo_pillar: selected?.cmo_pillar ?? '',
-    }));
+    const selected = catalogById.get(choice);
+    setForm((prev) => ({ ...prev, catalog_choice: choice, cmo_pillar: selected?.cmo_pillar ?? '' }));
     setOtherIntervention('');
+  };
+
+  const resetForm = () => {
+    setForm((prev) => ({ ...prev, catalog_choice: '', cmo_pillar: '', outcome: '', notes: '' }));
+    setOtherIntervention('');
+    setEditingInterventionId(null);
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -195,18 +193,21 @@ export function VisitInterventionsPage() {
     setSaving(true);
     setErrorMessage(null);
 
-    const isOtherIntervention = form.intervention_code === OTHER_INTERVENTION_CODE;
-    const interventionTypeToSave = isOtherIntervention ? otherIntervention.trim() : form.intervention_type;
+    const isOther = form.catalog_choice === OTHER_INTERVENTION_CODE;
+    const catalogItem = isOther ? null : catalogById.get(form.catalog_choice) ?? null;
+    const interventionType = isOther ? otherIntervention.trim() : catalogItem?.label ?? '';
 
-    if (!interventionTypeToSave) {
-      setErrorMessage('Selecciona una intervención del catálogo o escribe "Otra intervención".');
+    if (!interventionType) {
+      setErrorMessage('Selecciona una intervención del catálogo o escribe «Otra intervención».');
       setSaving(false);
       return;
     }
 
+    // Para tarjetas de catálogo, texto, pilar, código y versión los sella la base de datos desde el catálogo.
     const payload = {
-      intervention_type: interventionTypeToSave,
+      intervention_type: interventionType,
       intervention_domain: toDbCmoPillar(form.cmo_pillar),
+      catalog_item_id: catalogItem?.id ?? null,
       priority_level: form.priority_level,
       delivered: form.delivered,
       linked_to_cmo_level: Number(form.linked_to_cmo_level),
@@ -224,42 +225,52 @@ export function VisitInterventionsPage() {
       return;
     }
 
-    setForm((prev) => ({
-      ...prev,
-      intervention_code: '',
-      intervention_type: '',
-      intervention_domain: '',
-      cmo_pillar: '',
-      outcome: '',
-      notes: '',
-    }));
-    setOtherIntervention('');
-    setEditingInterventionId(null);
+    resetForm();
     setSaving(false);
     await loadInterventions();
   };
 
-
   const handleEditIntervention = (item: Intervention) => {
-    const catalogItem = findCatalogItemForIntervention(item);
-    const pillar = getInterventionPillar(item);
-
     setEditingInterventionId(item.id);
     setForm({
-      intervention_code: catalogItem?.code ?? OTHER_INTERVENTION_CODE,
-      intervention_type: item.intervention_type,
-      intervention_domain: item.intervention_domain ?? '',
-      cmo_pillar: pillar,
+      catalog_choice: item.catalog_item_id ?? OTHER_INTERVENTION_CODE,
+      cmo_pillar: normalizeCmoPillar(item.intervention_domain),
       priority_level: item.priority_level ?? 'low',
       delivered: item.delivered ?? true,
-      linked_to_cmo_level: String(item.linked_to_cmo_level ?? catalogItem?.min_level ?? 3),
+      linked_to_cmo_level: String(item.linked_to_cmo_level ?? currentLevel?.level ?? ''),
       outcome: item.outcome ?? '',
       notes: item.notes ?? '',
     });
-    setOtherIntervention(catalogItem ? '' : item.intervention_type);
+    setOtherIntervention(item.catalog_item_id ? '' : item.intervention_type);
+    if (item.catalog_item_id && !visibleCatalog.some((c) => c.id === item.catalog_item_id)) setShowAll(true);
   };
 
-  const isOtherIntervention = form.intervention_code === OTHER_INTERVENTION_CODE;
+  if (loading) return <LoadingState label="Cargando intervenciones..." />;
+
+  const arm = patient?.center?.study_arm ?? null;
+  const isOtherIntervention = form.catalog_choice === OTHER_INTERVENTION_CODE;
+  const selectedCatalogItem = isOtherIntervention ? null : catalogById.get(form.catalog_choice) ?? null;
+
+  if (arm !== 'cmo') {
+    return (
+      <div className="page-stack">
+        <section className="card">
+          <h1>Registro de intervenciones</h1>
+          <VisitTabs visitId={visitId} active="interventions" />
+          <Notice tone="info" title={arm === 'standard' ? STUDY_ARM_LABEL.standard : 'Centro sin cohorte asignada'}>
+            <p>
+              El registro de intervenciones CMO y su catálogo solo están disponibles en los centros de la cohorte de atención farmacéutica
+              CMO-MAPEX.
+            </p>
+          </Notice>
+          {errorMessage ? <ErrorState title="No se pudo cargar la visita" message={errorMessage} /> : null}
+          <div className="actions-inline section-footer-actions">
+            {visitPatientId ? <Link to={`/patients/${visitPatientId}`}>Volver a paciente</Link> : null}
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="page-stack">
@@ -267,45 +278,71 @@ export function VisitInterventionsPage() {
         <h1>Registro de intervenciones</h1>
         <VisitTabs visitId={visitId} active="interventions" />
 
-        {cmoScore ? (
+        {currentLevel ? (
           <div className="visit-score-summary">
-            <span className="visit-context-label">Puntuación CMO guardada para esta visita</span>
-            <CmoLevelBadge level={cmoScore.priority} score={cmoScore.score} />
+            <span className="visit-context-label">
+              {currentLevel.own ? 'Nivel CMO de esta visita' : `Nivel CMO vigente (última estratificación${currentLevel.date ? ` del ${currentLevel.date}` : ''})`}
+            </span>
+            <CmoLevelBadge level={currentLevel.level} score={currentLevel.score} />
           </div>
         ) : (
           <Notice tone="info" className="visit-score-notice">
             <p>
-              Sin puntuación CMO registrada para esta visita.{' '}
-              <Link to={`/visits/${visitId}/stratification`}>Ver datos clínicos</Link>
-            </p>
-            <p>
-              {inheritedLevel
-                ? `Nivel CMO vinculado propuesto: ${CMO_LEVEL_META[inheritedLevel.level].label} (última estratificación${inheritedLevel.date ? ` del ${inheritedLevel.date}` : ''}).`
-                : 'El paciente no tiene estratificación previa: selecciona el nivel CMO vinculado.'}
+              El paciente no tiene estratificación previa: se muestra el catálogo completo y debes seleccionar el nivel CMO vinculado.{' '}
+              <Link to={`/visits/${visitId}/stratification`}>Estratificar</Link>
             </p>
           </Notice>
         )}
 
-        <Notice tone="warning">
-          <p>
-            Catálogo de intervenciones CMO-DERMAPEX pendiente de definir a partir del protocolo. Registra las
-            intervenciones como «Otra intervención (texto libre)» indicando pilar CMO y nivel vinculado.
-          </p>
-        </Notice>
+        {currentLevel ? <ProtocolPackage level={currentLevel.level} /> : null}
+      </section>
+
+      <section className="card" aria-labelledby="intervention-form-title">
+        <SectionHeader
+          id="intervention-form-title"
+          title="Nueva intervención"
+          description={`Catálogo ${INTERVENTION_CATALOG_VERSION} (borrador literal de la fuente, pendiente de validación IP).`}
+        />
+        <div className="catalog-toolbar">
+          <label className="checkbox-row">
+            <input type="checkbox" checked={showAll || !currentLevel} disabled={!currentLevel} onChange={(e) => setShowAll(e.target.checked)} />
+            Ver todas las intervenciones del catálogo
+          </label>
+          <span className="help-text">
+            {showAll || !currentLevel
+              ? `${visibleCatalog.length} tarjetas`
+              : `${visibleCatalog.length} tarjetas recomendadas para ${CMO_LEVEL_META[currentLevel.level].shortLabel}`}
+          </span>
+        </div>
 
         <form className="form-grid" onSubmit={handleSubmit}>
           <label>
-            Tipo de intervención
-            <select required value={form.intervention_code} onChange={(e) => handleInterventionSelection(e.target.value)}>
+            Intervención
+            <select required value={form.catalog_choice} onChange={(e) => handleCatalogSelection(e.target.value)}>
               <option value="">Seleccionar intervención</option>
-              {visibleCatalog.map((item) => (
-                <option key={item.code} value={item.code}>
-                  {item.label}
-                </option>
-              ))}
+              {Object.entries(INTERVENTION_CATEGORY_LABEL).map(([category, label]) => {
+                const options = visibleCatalog.filter((item) => item.category === category);
+                if (options.length === 0) return null;
+                return (
+                  <optgroup key={category} label={label}>
+                    {options.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
               <option value={OTHER_INTERVENTION_CODE}>Otra intervención (texto libre)</option>
             </select>
           </label>
+
+          {selectedCatalogItem ? (
+            <p className="help-text">
+              Código {selectedCatalogItem.code} · pilar {CMO_PILLAR_LABEL[selectedCatalogItem.cmo_pillar]} · disponibilidad{' '}
+              {INTERVENTION_TIER_LABEL[selectedCatalogItem.tier ?? ''] ?? '-'} · recomendada para niveles {selectedCatalogItem.recommended_levels.join(', ')}
+            </p>
+          ) : null}
 
           {isOtherIntervention ? (
             <label>
@@ -319,11 +356,8 @@ export function VisitInterventionsPage() {
             <select
               required
               value={form.cmo_pillar}
-              onChange={(e) => setForm((p) => ({
-                ...p,
-                cmo_pillar: e.target.value as CmoPillar | '',
-                intervention_domain: toDbCmoPillar(e.target.value as CmoPillar | '') ?? '',
-              }))}
+              disabled={Boolean(selectedCatalogItem)}
+              onChange={(e) => setForm((p) => ({ ...p, cmo_pillar: e.target.value as CmoPillar | '' }))}
             >
               <option value="">Seleccionar pilar CMO</option>
               {CMO_PILLAR_OPTIONS.map((option) => (
@@ -336,20 +370,20 @@ export function VisitInterventionsPage() {
 
           <div className="grid-2">
             <label>
-              Prioridad
+              Prioridad de la intervención
               <select value={form.priority_level} onChange={(e) => setForm((p) => ({ ...p, priority_level: e.target.value as PriorityLevel }))}>
-                <option value="high">1 · Prioridad</option>
-                <option value="medium">2 · Intermedio</option>
-                <option value="low">3 · Basal</option>
+                <option value="high">{INTERVENTION_PRIORITY_LABEL.high}</option>
+                <option value="medium">{INTERVENTION_PRIORITY_LABEL.medium}</option>
+                <option value="low">{INTERVENTION_PRIORITY_LABEL.low}</option>
               </select>
             </label>
             <label>
               Nivel CMO vinculado
               <select required value={form.linked_to_cmo_level} onChange={(e) => setForm((p) => ({ ...p, linked_to_cmo_level: e.target.value }))}>
                 <option value="" disabled>Seleccionar nivel</option>
-                <option value="1">1 · Prioridad</option>
-                <option value="2">2 · Intermedio</option>
-                <option value="3">3 · Basal</option>
+                {([1, 2, 3] as const).map((level) => (
+                  <option key={level} value={String(level)}>{CMO_LEVEL_META[level].label}</option>
+                ))}
               </select>
             </label>
           </div>
@@ -369,11 +403,7 @@ export function VisitInterventionsPage() {
           <div className="form-actions">
             <button type="submit" disabled={saving}>{saving ? 'Guardando...' : editingInterventionId ? 'Guardar cambios' : 'Guardar intervención'}</button>
             {editingInterventionId ? (
-              <button type="button" className="secondary" onClick={() => {
-                setEditingInterventionId(null);
-                setForm((prev) => ({ ...prev, intervention_code: '', intervention_type: '', intervention_domain: '', cmo_pillar: '', outcome: '', notes: '' }));
-                setOtherIntervention('');
-              }}>
+              <button type="button" className="secondary" onClick={resetForm}>
                 Cancelar edición
               </button>
             ) : null}
@@ -389,25 +419,30 @@ export function VisitInterventionsPage() {
           <p className="empty-inline">Sin intervenciones registradas para esta visita.</p>
         ) : (
           <ul className="intervention-list">
-            {items.map((item) => (
-              <li key={item.id}>
-                <div className="intervention-main">
-                  <p className="intervention-title">{item.intervention_type}</p>
-                  <div className="intervention-meta">
-                    <span>{item.priority_level ? interventionPriorityLabel[item.priority_level] : '-'}</span>
-                    <span><strong>Pilar CMO:</strong> {getInterventionPillar(item) ? CMO_PILLAR_LABEL[getInterventionPillar(item) as CmoPillar] : 'No asignado'}</span>
-                    <StatusBadge tone={item.delivered ? 'positive' : 'neutral'}>{item.delivered ? 'Entregada' : 'Pendiente'}</StatusBadge>
+            {items.map((item) => {
+              const pillar = normalizeCmoPillar(item.intervention_domain);
+              return (
+                <li key={item.id}>
+                  <div className="intervention-main">
+                    <p className="intervention-title">{item.intervention_type}</p>
+                    <div className="intervention-meta">
+                      <span><strong>Prioridad:</strong> {item.priority_level ? INTERVENTION_PRIORITY_LABEL[item.priority_level] : '-'}</span>
+                      <span><strong>Pilar CMO:</strong> {pillar ? CMO_PILLAR_LABEL[pillar] : 'No asignado'}</span>
+                      <span><strong>Nivel vinculado:</strong> {toCmoLevel(item.linked_to_cmo_level) ? CMO_LEVEL_META[toCmoLevel(item.linked_to_cmo_level) as CmoLevel].shortLabel : '-'}</span>
+                      <span><strong>Catálogo:</strong> {item.catalog_code ? `${item.catalog_code} · ${item.catalog_version}` : 'Texto libre'}</span>
+                      <StatusBadge tone={item.delivered ? 'positive' : 'neutral'}>{item.delivered ? 'Entregada' : 'Pendiente'}</StatusBadge>
+                    </div>
+                    {item.outcome?.trim() ? <p className="intervention-note"><strong>Resultado:</strong> {item.outcome.trim()}</p> : null}
+                    {item.notes?.trim() ? <p className="intervention-note"><strong>Notas:</strong> {item.notes.trim()}</p> : null}
                   </div>
-                  {item.outcome?.trim() ? <p className="intervention-note"><strong>Resultado:</strong> {item.outcome.trim()}</p> : null}
-                  {item.notes?.trim() ? <p className="intervention-note"><strong>Notas:</strong> {item.notes.trim()}</p> : null}
-                </div>
-                <button type="button" className="secondary button-sm" onClick={() => handleEditIntervention(item)}>Editar intervención</button>
-              </li>
-            ))}
+                  <button type="button" className="secondary button-sm" onClick={() => handleEditIntervention(item)}>Editar intervención</button>
+                </li>
+              );
+            })}
           </ul>
         )}
         <div className="actions-inline section-footer-actions">
-          <Link to={`/visits/${visitId}/stratification`}>Volver a datos clínicos</Link>
+          <Link to={`/visits/${visitId}/stratification`}>Volver a estratificación</Link>
           {visitPatientId ? <Link to={`/patients/${visitPatientId}`}>Volver a paciente</Link> : null}
         </div>
       </section>

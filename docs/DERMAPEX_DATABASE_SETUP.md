@@ -54,7 +54,7 @@ Supabase → **Authentication → Emails → Templates**:
 
 Opción A — **SQL Editor** (sin instalar nada):
 1. Supabase → **SQL Editor → New query**.
-2. Copia el contenido completo de cada fichero de `supabase/migrations/`, **en orden** (100000 → 100400), pulsa **Run** y espera "Success" antes de pasar al siguiente.
+2. Copia el contenido completo de cada fichero de `supabase/migrations/`, **en orden** por nombre de fichero (de `20261005100000_…` a `20261006100300_…`), pulsa **Run** y espera "Success" antes de pasar al siguiente.
 3. Si alguno falla, **para** y comunica el mensaje de error: no intentes corregirlo a mano.
 
 Opción B — **Supabase CLI**: `supabase link --project-ref <ref-del-proyecto-DERMAPEX>` y `supabase db push`.
@@ -80,10 +80,15 @@ Si alguien olvida su contraseña: coordinación le asigna otra temporal desde el
 En **SQL Editor**, adapta y ejecuta (sustituye los valores entre `<>`; no uses datos de pacientes):
 
 ```sql
--- 4.1 Centros participantes (código: mayúsculas/números, 2-20 caracteres)
-insert into public.centers (code, name) values
-  ('<COD1>', '<Nombre del centro 1>'),
-  ('<COD2>', '<Nombre del centro 2>');
+-- 4.1 Centros participantes (código: mayúsculas/números, 2-20 caracteres).
+-- study_arm (cohorte, OBLIGATORIA): 'cmo' = AF CMO-MAPEX · 'standard' = AF estándar (comparador).
+-- No se puede cambiar una vez que el centro tenga pacientes.
+insert into public.centers (code, name, study_arm) values
+  ('<COD1>', '<Nombre del centro 1>', '<cmo|standard>'),
+  ('<COD2>', '<Nombre del centro 2>', '<cmo|standard>');
+
+-- 4.1 bis Centros creados ANTES de la migración 20261006100000: asignarles la cohorte.
+-- update public.centers set study_arm = '<cmo|standard>' where code = '<COD>';
 
 -- 4.2 Coordinación del estudio (acceso a todos los centros)
 update public.profiles set role = 'coordinator'
@@ -96,7 +101,7 @@ select u.id, c.id
  where u.email = '<email-investigador>' and c.code = '<COD1>';
 
 -- 4.4 Comprobación
-select u.email, p.role, p.is_active, c.code
+select u.email, p.role, p.is_active, c.code, c.study_arm
   from public.profiles p
   join auth.users u on u.id = p.id
   left join public.center_memberships m on m.profile_id = p.id
