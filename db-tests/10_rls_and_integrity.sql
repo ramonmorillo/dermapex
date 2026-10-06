@@ -112,10 +112,8 @@ values ('a1000000-0000-4000-8000-0000000000a1', 'Intervención en texto libre', 
 select dermapex_test.expect_fail($$insert into public.questionnaire_responses (visit_id, user_id, measurement_id, questionnaire_code, responses) values ('a1000000-0000-4000-8000-0000000000a1', 'aaaaaaaa-0000-4000-8000-000000000001', gen_random_uuid(), 'IEXPAC', '{}')$$, 'cuestionario no configurado rechazado');
 select dermapex_test.expect_fail($$insert into public.questionnaire_measurement_map (questionnaire_code) values ('IEXPAC')$$, 'investigador no puede configurar instrumentos');
 
--- Proceso de visita: el paciente debe coincidir con el de la visita.
-insert into public.visit_process_records (patient_id, visit_id, total_session_minutes, created_by)
-values ('a0000000-0000-4000-8000-0000000000a1', 'a1000000-0000-4000-8000-0000000000a1', 20, 'aaaaaaaa-0000-4000-8000-000000000001')
-on conflict (visit_id) do update set total_session_minutes = excluded.total_session_minutes;
+-- El módulo «Proceso» (visit_process_records) se retiró en 20261006120000.
+select dermapex_test.expect((select to_regclass('public.visit_process_records')) is null, 'tabla visit_process_records retirada');
 
 -- Medicación (flujo del frontend: catálogo manual → medicación del paciente → evento de visita).
 select dermapex_test.expect_fail($$insert into public.medication_catalog (source, display_name) values ('foo', 'Medicamento X')$$, 'fuente de catálogo no permitida');
@@ -182,7 +180,6 @@ select dermapex_test.expect(dermapex_test.affected($$update public.patients set 
 
 insert into public.patients (id, study_code, created_by) values ('b0000000-0000-4000-8000-0000000000b1', 'DPX-C2-001', 'bbbbbbbb-0000-4000-8000-000000000001');
 insert into public.visits (id, patient_id, visit_type, created_by) values ('b1000000-0000-4000-8000-0000000000b1', 'b0000000-0000-4000-8000-0000000000b1', 'baseline', 'bbbbbbbb-0000-4000-8000-000000000001');
-select dermapex_test.expect_fail($$insert into public.visit_process_records (patient_id, visit_id, created_by) values ('b0000000-0000-4000-8000-0000000000b1', 'a1000000-0000-4000-8000-0000000000a1', 'bbbbbbbb-0000-4000-8000-000000000001')$$, 'registro de proceso con visita de otro paciente rechazado');
 commit;
 
 -- ── Usuario sin centro ──────────────────────────────────────────────────────
