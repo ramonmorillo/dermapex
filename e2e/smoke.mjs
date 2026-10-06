@@ -134,6 +134,19 @@ async function newPage(viewport = { width: 1280, height: 900 }) {
   check(history.includes('Basal') && history.includes('19') && history.includes('N2 · P2') && history.includes('cmo-dermapex-1.0.0+src.227e444'), 'CMO: historial con fecha, motivo, puntuación, nivel y versión del motor');
   await page.screenshot({ path: `${SHOTS}/04-cmo-ficha-historial.png`, fullPage: true });
 
+  // Alta de paciente: el código de estudio lo asigna la base de datos (DPX-<n.º centro>-NNNN).
+  await page.goto(`${APP_URL}/#/patients/new`);
+  await page.getByRole('heading', { name: 'Alta de paciente' }).waitFor();
+  const codeHint = page.getByText('Se asignará automáticamente al guardar: DPX-1-NNNN');
+  check(await codeHint.waitFor({ timeout: 10000 }).then(() => true, () => false), 'Alta: se informa del código que se asignará (DPX-1-NNNN)');
+  await page.locator('input[type="number"]').fill('52');
+  await page.locator('select').nth(1).selectOption('male');
+  await page.getByRole('button', { name: 'Guardar paciente' }).click();
+  await page.waitForURL(/#\/patients\/[0-9a-f-]{36}$/, { timeout: 15000 });
+  await page.getByText('DPX-1-0002').first().waitFor();
+  check(true, 'Alta: el segundo paciente del centro 1 recibe DPX-1-0002');
+  await page.screenshot({ path: `${SHOTS}/10-alta-codigo-asignado.png`, fullPage: false });
+
   // Vista móvil (ancho de teléfono).
   const mobile = await newPage({ width: 390, height: 844 });
   await login(mobile.page, 'cmo@e2e.test');

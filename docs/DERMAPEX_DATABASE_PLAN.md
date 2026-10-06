@@ -88,3 +88,13 @@ versionado e inmutable (28 filas), columnas nuevas en `cmo_scores`, función
 enmascaradas, catálogo de intervenciones literal (20 tarjetas) y vínculo `interventions → intervention_catalog`.
 Detalle en `DERMAPEX_CMO_ENGINE.md`. **Pendiente de aplicar** al proyecto Supabase; tras aplicarlas,
 coordinación debe asignar `study_arm` a cada centro existente.
+
+## 7. Código de estudio correlativo por centro (2026-10-06, decisión de la IP)
+
+Migración `20261006130000_dermapex_patient_study_code.sql` (pruebas: `db-tests/30_patient_study_code.sql`).
+`patients.study_code` = `DPX-<centers.study_number>-<correlativo de 4 dígitos>`, asignado por la base de
+datos al dar de alta, con un contador por centro bloqueado por fila: no hay duplicados aunque se den de
+alta pacientes a la vez. El código es inmutable y el paciente no puede cambiar de centro. Un borrado deja
+hueco en la numeración, que queda auditado. El código no contiene datos del paciente. Numeración de
+centros: Valme 1, Virgen de la Victoria 2, Virgen de las Nieves 3, Puerta del Mar 4, Torrecárdenas 5
+(asignada por SQL en producción, no en la migración).

@@ -60,9 +60,9 @@ select dermapex_test.expect((select full_name from public.profiles where id = 'a
 select dermapex_test.expect((select bool_and(role = 'investigator') from public.profiles), 'rol por defecto = investigator');
 
 update public.profiles set role = 'coordinator' where id = 'cccccccc-0000-4000-8000-000000000001';
-insert into public.centers (id, code, name, study_arm) values
-  ('11111111-0000-4000-8000-000000000001', 'C1', 'Centro uno', 'cmo'),
-  ('11111111-0000-4000-8000-000000000002', 'C2', 'Centro dos', 'standard');
+insert into public.centers (id, code, name, study_arm, study_number) values
+  ('11111111-0000-4000-8000-000000000001', 'C1', 'Centro uno', 'cmo', 1),
+  ('11111111-0000-4000-8000-000000000002', 'C2', 'Centro dos', 'standard', 2);
 insert into public.center_memberships (profile_id, center_id) values
   ('aaaaaaaa-0000-4000-8000-000000000001', '11111111-0000-4000-8000-000000000001'),
   ('aaaaaaaa-0000-4000-8000-000000000002', '11111111-0000-4000-8000-000000000001'),

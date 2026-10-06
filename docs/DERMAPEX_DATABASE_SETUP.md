@@ -83,12 +83,14 @@ En **SQL Editor**, adapta y ejecuta (sustituye los valores entre `<>`; no uses d
 -- 4.1 Centros participantes (código: mayúsculas/números, 2-20 caracteres).
 -- study_arm (cohorte, OBLIGATORIA): 'cmo' = AF CMO-MAPEX · 'standard' = AF estándar (comparador).
 -- No se puede cambiar una vez que el centro tenga pacientes.
-insert into public.centers (code, name, study_arm) values
-  ('<COD1>', '<Nombre del centro 1>', '<cmo|standard>'),
-  ('<COD2>', '<Nombre del centro 2>', '<cmo|standard>');
+-- study_number (1-99, único): número del centro en el código de estudio DPX-<n>-NNNN. Sin él no se
+-- incluyen pacientes; tampoco se puede cambiar cuando el centro ya tenga pacientes.
+insert into public.centers (code, name, study_arm, study_number) values
+  ('<COD1>', '<Nombre del centro 1>', '<cmo|standard>', <n1>),
+  ('<COD2>', '<Nombre del centro 2>', '<cmo|standard>', <n2>);
 
 -- 4.1 bis Centros creados ANTES de la migración 20261006100000: asignarles la cohorte.
--- update public.centers set study_arm = '<cmo|standard>' where code = '<COD>';
+-- update public.centers set study_arm = '<cmo|standard>', study_number = <n> where code = '<COD>';
 
 -- 4.2 Coordinación del estudio (acceso a todos los centros)
 update public.profiles set role = 'coordinator'
@@ -101,7 +103,7 @@ select u.id, c.id
  where u.email = '<email-investigador>' and c.code = '<COD1>';
 
 -- 4.4 Comprobación
-select u.email, p.role, p.is_active, c.code, c.study_arm
+select u.email, p.role, p.is_active, c.code, c.study_arm, c.study_number
   from public.profiles p
   join auth.users u on u.id = p.id
   left join public.center_memberships m on m.profile_id = p.id

@@ -50,10 +50,10 @@ commit;
 
 begin;
 select dermapex_test.as_user('cccccccc-0000-4000-8000-000000000001');
-insert into public.centers (id, code, name, study_arm) values
-  ('22222222-0000-4000-8000-000000000001', 'CM', 'Centro cohorte CMO', 'cmo'),
-  ('22222222-0000-4000-8000-000000000002', 'CS', 'Centro cohorte estándar', 'standard'),
-  ('22222222-0000-4000-8000-000000000003', 'CV', 'Centro vacío', 'cmo');
+insert into public.centers (id, code, name, study_arm, study_number) values
+  ('22222222-0000-4000-8000-000000000001', 'CM', 'Centro cohorte CMO', 'cmo', 11),
+  ('22222222-0000-4000-8000-000000000002', 'CS', 'Centro cohorte estándar', 'standard', 12),
+  ('22222222-0000-4000-8000-000000000003', 'CV', 'Centro vacío', 'cmo', 13);
 insert into public.center_memberships (profile_id, center_id) values
   ('aaaaaaaa-1000-4000-8000-000000000001', '22222222-0000-4000-8000-000000000001'),
   ('bbbbbbbb-1000-4000-8000-000000000001', '22222222-0000-4000-8000-000000000002');

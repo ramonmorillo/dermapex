@@ -16,9 +16,9 @@ insert into auth.users (id, email, raw_user_meta_data) values
 update public.profiles set must_change_password = false;
 update public.profiles set role = 'coordinator' where id = 'cccccccc-e2e0-4000-8000-000000000001';
 
-insert into public.centers (id, code, name, study_arm) values
-  ('11111111-e2e0-4000-8000-000000000001', 'E2E-CMO', 'Centro ficticio cohorte CMO', 'cmo'),
-  ('11111111-e2e0-4000-8000-000000000002', 'E2E-STD', 'Centro ficticio cohorte estándar', 'standard');
+insert into public.centers (id, code, name, study_arm, study_number) values
+  ('11111111-e2e0-4000-8000-000000000001', 'E2E-CMO', 'Centro ficticio cohorte CMO', 'cmo', 1),
+  ('11111111-e2e0-4000-8000-000000000002', 'E2E-STD', 'Centro ficticio cohorte estándar', 'standard', 2);
 insert into public.center_memberships (profile_id, center_id) values
   ('aaaaaaaa-e2e0-4000-8000-000000000001', '11111111-e2e0-4000-8000-000000000001'),
   ('bbbbbbbb-e2e0-4000-8000-000000000001', '11111111-e2e0-4000-8000-000000000002');
