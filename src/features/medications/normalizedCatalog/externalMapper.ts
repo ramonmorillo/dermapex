@@ -151,13 +151,15 @@ export function mapExternalMedicationPayloadToNormalizedCandidate(
   const cimaNRegistro = readString(payload, ['cima_nregistro', 'nregistro', 'numero_registro']);
   const strengthText = readString(payload, ['strength_text', 'strength', 'dosis', 'dosage']);
   const pharmaceuticalForm = readString(payload, ['pharmaceutical_form', 'form', 'forma_farmaceutica']);
-  const routeDefault = readString(payload, ['route_default', 'route', 'via', 'administration_route']);
   const atcCodes = dedupeNormalized(readStringArray(payload, ['atc_codes', 'atc_code', 'atc']));
   const routes = dedupeNormalized(readStringArray(payload, ['routes', 'route', 'vias', 'administration_route']));
+  const routeDefault = readString(payload, ['route_default', 'route', 'via', 'administration_route']) ?? routes[0] ?? null;
   const canonicalName = readString(payload, ['canonical_name']) ?? cimaName;
 
+  // Sin principios activos, el concepto no puede identificarse solo por dosis/forma/vía (dos fármacos
+  // distintos de 300 mg en jeringa precargada se fusionarían): se ancla al n.º de registro.
   const fingerprint = buildMedicationFingerprint({
-    ingredientNames,
+    ingredientNames: ingredientNames.length > 0 ? ingredientNames : [`nreg ${cimaNRegistro ?? cimaCn ?? cimaName}`],
     strengthText,
     pharmaceuticalForm,
     routeDefault,

@@ -130,6 +130,14 @@ Las altas y bajas de acceso quedan en `app_private.admin_log` (registro administ
 
 La búsqueda en CIMA usa la función `supabase/functions/search-cima-medications`. Despliégala con la CLI: `supabase functions deploy search-cima-medications --project-ref <ref>`. Sin ella, la medicación funciona con alta manual, pero no busca en CIMA.
 
+**Estado (2026-10-06):** desplegada en el proyecto `dermapex` (versión 1, `verify_jwt` activo: solo usuarios con sesión). Hasta esa fecha no estaba desplegada, y por eso la búsqueda en CIMA fallaba siempre. Cada cambio en `supabase/functions/search-cima-medications/` exige volver a desplegarla.
+
+Funcionamiento:
+- Busca a la vez por nombre comercial (`nombre`) y por principio activo (`practiv1`). Si el texto es un número de 6-7 dígitos, también por código nacional (`cn`). Solo devuelve medicamentos autorizados y comercializados, sin duplicados.
+- Identifica cada medicamento por su **n.º de registro AEMPS**. El listado de CIMA no trae el código nacional, que pertenece a cada presentación. En el catálogo local, `source_code` es el CN si es inequívoco y, si no, `nreg:<n.º de registro>`.
+- Guarda los principios activos, los códigos ATC (no sus nombres), la vía y la forma farmacéutica.
+- La transformación de datos está en `cimaMapping.ts` y la cubre `tests/cimaMapping.test.ts`.
+
 ## 6. Comprobación final
 
 1. Entra en `https://ramonmorillo.github.io/dermapex/` con un usuario investigador: debe ver el panel y poder dar de alta un paciente **solo en su centro**.

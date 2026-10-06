@@ -326,24 +326,22 @@ export function MedicationPanel({ visitId, patientId }: MedicationPanelProps) {
 
     setExternalCatalogLoading(true);
     setExternalCatalogError(null);
+    // Evita que una respuesta lenta de una búsqueda anterior sobrescriba la de la búsqueda actual.
+    let cancelled = false;
 
     const timeoutId = window.setTimeout(() => {
       void (async () => {
         const result = await searchExternalMedicationCatalog(trimmedQuery);
-        if (result.errorMessage) {
-          setExternalCatalogOptions([]);
-          setExternalCatalogError(result.errorMessage);
-          setExternalCatalogLoading(false);
-          return;
-        }
-
+        if (cancelled) return;
+        // Si CIMA falla pero hay resultados en la caché local, se muestran junto al aviso.
         setExternalCatalogOptions(result.data);
-        setExternalCatalogError(null);
+        setExternalCatalogError(result.errorMessage);
         setExternalCatalogLoading(false);
       })();
     }, 300);
 
     return () => {
+      cancelled = true;
       window.clearTimeout(timeoutId);
     };
   }, [externalCatalogQuery]);
@@ -551,7 +549,7 @@ export function MedicationPanel({ visitId, patientId }: MedicationPanelProps) {
               setExternalCatalogError(null);
               setExternalCatalogQuery(event.target.value);
             }}
-            placeholder="Ej. atorvastatina, CN..."
+            placeholder="Nombre comercial, principio activo o código nacional"
           />
         </label>
 
@@ -582,7 +580,7 @@ export function MedicationPanel({ visitId, patientId }: MedicationPanelProps) {
       ) : null}
       {!externalCatalogLoading && externalCatalogError ? (
         <p className="notice notice-danger panel-notice">
-          Error en búsqueda externa: {externalCatalogError}
+          {externalCatalogOptions.length > 0 ? 'Aviso' : 'Error en búsqueda externa'}: {externalCatalogError}
         </p>
       ) : null}
       {!externalCatalogLoading && !externalCatalogError && externalCatalogQuery.trim().length >= 3 && externalCatalogOptions.length === 0 ? (
