@@ -4,6 +4,8 @@ export type Center = {
   id: string;
   code: string;
   name: string;
+  /** Número del centro en el código de estudio (DPX-<n>-NNNN). null = sin asignar: no admite altas. */
+  study_number: number | null;
 };
 
 /**
@@ -17,7 +19,7 @@ export async function listAccessibleCenters(): Promise<{ data: Center[]; errorMe
 
   const { data, error } = await supabase
     .from('centers')
-    .select('id,code,name')
+    .select('id,code,name,study_number')
     .eq('is_active', true)
     .order('code', { ascending: true });
 

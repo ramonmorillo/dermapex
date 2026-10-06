@@ -18,7 +18,8 @@ export type Patient = {
   center?: { id: string; code: string; name: string; study_arm: StudyArm | null } | null;
 };
 
-export type NewPatientInput = Omit<Patient, 'id' | 'created_at' | 'center'>;
+// study_code lo asigna la base de datos (DPX-<n.º de centro>-<correlativo>): no se envía.
+export type NewPatientInput = Omit<Patient, 'id' | 'created_at' | 'center' | 'study_code'>;
 
 function extractErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {

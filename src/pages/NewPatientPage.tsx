@@ -11,7 +11,6 @@ import { createPatient } from '../services/patientService';
 export function NewPatientPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState<{
-    study_code: string;
     center_id: string;
     inclusion_date: string;
     screening_date: string;
@@ -20,7 +19,6 @@ export function NewPatientPage() {
     sex: SexType | '';
     consent_signed: boolean;
   }>({
-    study_code: '',
     center_id: '',
     inclusion_date: '',
     screening_date: '',
@@ -39,7 +37,7 @@ export function NewPatientPage() {
       const result = await listAccessibleCenters();
       setCenters(result.data);
       setCentersError(result.errorMessage);
-      if (result.data.length === 1) {
+      if (result.data.length === 1 && result.data[0].study_number !== null) {
         setForm((p) => ({ ...p, center_id: result.data[0].id }));
       }
     })();
@@ -57,13 +55,14 @@ export function NewPatientPage() {
     }
   }, [form.birth_date, form.inclusion_date]);
 
+  const selectedCenter = centers.find((center) => center.id === form.center_id) ?? null;
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
     setErrorMessage(null);
 
     const result = await createPatient({
-      study_code: form.study_code.trim(),
       center_id: form.center_id,
       inclusion_date: form.inclusion_date || null,
       screening_date: form.screening_date || null,
@@ -93,10 +92,6 @@ export function NewPatientPage() {
       <form className="form-grid" onSubmit={handleSubmit}>
         <div className="grid-2">
           <label>
-            <span>Study code <span className="required-mark" aria-hidden="true">*</span></span>
-            <input value={form.study_code} onChange={(e) => setForm((p) => ({ ...p, study_code: e.target.value }))} required />
-          </label>
-          <label>
             <span>Centro <span className="required-mark" aria-hidden="true">*</span></span>
             <select
               value={form.center_id}
@@ -108,12 +103,21 @@ export function NewPatientPage() {
                 {centers.length === 0 ? 'Sin centros asignados' : 'Selecciona un centro'}
               </option>
               {centers.map((center) => (
-                <option key={center.id} value={center.id}>
+                <option key={center.id} value={center.id} disabled={center.study_number === null}>
                   {center.code} · {center.name}
+                  {center.study_number === null ? ' (sin número de estudio: contacte con coordinación)' : ''}
                 </option>
               ))}
             </select>
           </label>
+          <div className="panel-field">
+            <span>Código de estudio</span>
+            <p className="help-text">
+              {selectedCenter?.study_number
+                ? `Se asignará automáticamente al guardar: DPX-${selectedCenter.study_number}-NNNN (siguiente número del centro).`
+                : 'Se asigna automáticamente al guardar (DPX-<n.º de centro>-NNNN).'}
+            </p>
+          </div>
           <label>
             Fecha inclusión
             <input
