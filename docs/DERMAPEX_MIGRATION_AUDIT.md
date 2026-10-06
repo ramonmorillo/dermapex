@@ -96,7 +96,7 @@ Convenciones de este documento:
 | R7 | `docs/*` de IRIS (auditorías, propuestas) | Documentación del proyecto RCV. | **No migrados.** Se citan por nombre cuando aportan contexto. |
 | R8 | Migraciones SQL de IRIS | Ver §4: no reflejan fielmente el esquema real de IRIS. | **No copiadas** a `supabase/migrations/` para evitar un `db push` accidental. Plan en `DERMAPEX_DATABASE_PLAN.md`. |
 | R9 | Inferencia de tipos SPSS por nombre de columna (`spssWriter.ts`, `exportService.ts` `inferSpsFormatByHeader`) | Contiene prefijos RCV (`ldl_`, `hba1c_`, `score2_`…). Inocuos tras retirar esas columnas. | Sin cambios; revisar al definir el diccionario de datos DERMAPEX. |
-| R10 | Defecto heredado en informe | `reportService.ts` `deriveSimpleSummary`: «Su prioridad CMO actual es ${cmoScore}» imprime la **puntuación** como si fuera la prioridad. También coexisten dos juegos de etiquetas de nivel (`cmoPriorityLabel` vs `CMO_LEVEL_META`). | **No corregido** (lógica no relacionada con la migración). Corregir al rediseñar el informe. |
+| R10 | Defecto heredado en informe | `reportService.ts` `deriveSimpleSummary`: «Su prioridad CMO actual es ${cmoScore}» imprime la **puntuación** como si fuera la prioridad. También coexisten dos juegos de etiquetas de nivel (`cmoPriorityLabel` vs `CMO_LEVEL_META`). | **Corregido el 2026-10-06** (`reportService.describeCmoForReport`, etiquetas únicas en `cmoLevels.ts`; ver `DERMAPEX_CMO_ENGINE.md`). |
 | R11 | Campo «Centro» del alta de paciente | Columna heredada `pharmacy_site` (texto libre). | Solo se cambia la etiqueta. Sustituir por `center_id` (ver plan BD). |
 | R12 | Calendario de cuestionarios basal + `month_12`/`final` | Heredado de IRIS (`isQuestionnaireVisitType`). | Sin cambios. Ajustar a basal/6/12 según protocolo. |
 

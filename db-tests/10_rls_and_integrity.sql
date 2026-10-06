@@ -60,9 +60,9 @@ select dermapex_test.expect((select full_name from public.profiles where id = 'a
 select dermapex_test.expect((select bool_and(role = 'investigator') from public.profiles), 'rol por defecto = investigator');
 
 update public.profiles set role = 'coordinator' where id = 'cccccccc-0000-4000-8000-000000000001';
-insert into public.centers (id, code, name) values
-  ('11111111-0000-4000-8000-000000000001', 'C1', 'Centro uno'),
-  ('11111111-0000-4000-8000-000000000002', 'C2', 'Centro dos');
+insert into public.centers (id, code, name, study_arm) values
+  ('11111111-0000-4000-8000-000000000001', 'C1', 'Centro uno', 'cmo'),
+  ('11111111-0000-4000-8000-000000000002', 'C2', 'Centro dos', 'standard');
 insert into public.center_memberships (profile_id, center_id) values
   ('aaaaaaaa-0000-4000-8000-000000000001', '11111111-0000-4000-8000-000000000001'),
   ('aaaaaaaa-0000-4000-8000-000000000002', '11111111-0000-4000-8000-000000000001'),
@@ -96,14 +96,14 @@ insert into public.visits (id, patient_id, visit_type, visit_number, scheduled_d
 values ('a1000000-0000-4000-8000-0000000000a1', 'a0000000-0000-4000-8000-0000000000a1', 'baseline', 1, '2026-10-05', 'scheduled', 'aaaaaaaa-0000-4000-8000-000000000001');
 select dermapex_test.expect_fail($$insert into public.visits (patient_id, visit_type, created_by) values ('a0000000-0000-4000-8000-0000000000a1', 'month_24', 'aaaaaaaa-0000-4000-8000-000000000001')$$, 'tipo de visita no admitido');
 
--- Puntuación CMO (upsert como el frontend) y resultados por ítem.
-insert into public.cmo_scores (visit_id, score, priority, calculated_by)
-values ('a1000000-0000-4000-8000-0000000000a1', 10, 3, 'aaaaaaaa-0000-4000-8000-000000000001')
-on conflict (visit_id) do update set score = excluded.score, priority = excluded.priority;
-insert into public.cmo_scores (visit_id, score, priority, calculated_by)
-values ('a1000000-0000-4000-8000-0000000000a1', 12, 2, 'aaaaaaaa-0000-4000-8000-000000000001')
-on conflict (visit_id) do update set score = excluded.score, priority = excluded.priority;
-select dermapex_test.expect((select priority from public.cmo_scores where visit_id = 'a1000000-0000-4000-8000-0000000000a1') = 2, 'upsert de puntuación CMO por visita');
+-- Puntuación CMO: solo mediante save_cmo_stratification (ver 20_cmo_stratification.sql). Un segundo
+-- guardado en la misma visita actualiza el registro (una estratificación por visita).
+select public.save_cmo_stratification('a1000000-0000-4000-8000-0000000000a1', 'baseline', 'cmo-derma-model-1.0.0+src.227e444', 'cmo-dermapex-1.0.0+src.227e444',
+  (select jsonb_object_agg(variable_code, case when value_type = 'select' then 'ninguna' else 'no' end) from public.cmo_variable_catalog where value_type <> 'derived_age'), 2, 3);
+select public.save_cmo_stratification('a1000000-0000-4000-8000-0000000000a1', 'baseline', 'cmo-derma-model-1.0.0+src.227e444', 'cmo-dermapex-1.0.0+src.227e444',
+  (select jsonb_object_agg(variable_code, case when value_type = 'select' then 'ninguna' when variable_code in ('naive_terapia', 'falta_adherencia', 'polimedicacion', 'tabaquismo', 'medicamento_reciente', 'sexo_mujer') then 'si' else 'no' end) from public.cmo_variable_catalog where value_type <> 'derived_age'), 18, 2);
+select dermapex_test.expect((select priority from public.cmo_scores where visit_id = 'a1000000-0000-4000-8000-0000000000a1') = 2, 'nuevo guardado de la estratificación de la visita (actualiza)');
+select dermapex_test.expect((select count(*) from public.cmo_scores where visit_id = 'a1000000-0000-4000-8000-0000000000a1') = 1, 'una sola estratificación por visita');
 
 insert into public.interventions (visit_id, intervention_type, intervention_domain, priority_level, delivered, linked_to_cmo_level, delivered_by)
 values ('a1000000-0000-4000-8000-0000000000a1', 'Intervención en texto libre', 'Capacidad', 'medium', true, 2, 'aaaaaaaa-0000-4000-8000-000000000001');

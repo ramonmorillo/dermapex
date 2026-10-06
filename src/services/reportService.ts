@@ -1,3 +1,4 @@
+import { cmoLevelLabel, toCmoLevel } from '../constants/cmoLevels';
 import { getVisitTypeLabel } from '../constants/enums';
 import { PROJECT_IDENTITY, PROJECT_INSTITUTIONAL_REFERENCE } from '../constants/institutional';
 import { normalizeMedicationDisplayName } from '../features/medications/displayFormat';
@@ -65,11 +66,31 @@ function toDateTimeLabel(value: Date): string {
   });
 }
 
-function cmoPriorityLabel(priority: number | null | undefined): string {
-  if (priority === 1) return 'Nivel 1 · Prioridad alta';
-  if (priority === 2) return 'Nivel 2 · Seguimiento estrecho';
-  if (priority === 3) return 'Nivel 3 · Seguimiento rutinario';
-  return 'No disponible';
+export const CMO_NOT_APPLICABLE_LABEL = 'No aplica (centro de atención farmacéutica estándar)';
+
+/**
+ * Textos CMO del informe. Corrige el defecto heredado R10: antes se imprimía la PUNTUACIÓN como si
+ * fuera la prioridad («Su prioridad CMO actual es 23»). Ahora el nivel/prioridad sale de priority y
+ * la puntuación se rotula como puntos. Etiquetas únicas de constants/cmoLevels.ts.
+ * En centros de la cohorte estándar los informes no incluyen resultados CMO (D5).
+ */
+export function describeCmoForReport(
+  score: number | null | undefined,
+  priority: number | null | undefined,
+  cmoVisible: boolean,
+): { levelLabel: string; scoreLabel: string; patientSentence: string | null; clinicalSentence: string } {
+  if (!cmoVisible) {
+    return { levelLabel: CMO_NOT_APPLICABLE_LABEL, scoreLabel: CMO_NOT_APPLICABLE_LABEL, patientSentence: null, clinicalSentence: '' };
+  }
+  const level = toCmoLevel(priority);
+  const hasScore = typeof score === 'number' && Number.isFinite(score);
+  const levelLabel = cmoLevelLabel(level);
+  return {
+    levelLabel,
+    scoreLabel: hasScore && level ? `${score} puntos · ${levelLabel}` : 'No disponible',
+    patientSentence: level ? `Su nivel de atención farmacéutica CMO actual es: ${levelLabel}` : null,
+    clinicalSentence: `Estratificación CMO: ${hasScore && level ? `${score} puntos · ${levelLabel}` : 'No disponible'}.`,
+  };
 }
 
 function formatInterventionItem(item: Intervention): string {
@@ -79,18 +100,18 @@ function formatInterventionItem(item: Intervention): string {
   return chunks.join(' · ');
 }
 
-function deriveSimpleSummary(visit: Visit, cmoScore: number | null, interventions: Intervention[], questionnaires: QuestionnaireResponseRecord[]): string {
+function deriveSimpleSummary(visit: Visit, cmoSentence: string | null, interventions: Intervention[], questionnaires: QuestionnaireResponseRecord[]): string {
   const chunks: string[] = [];
-  if (cmoScore !== null) chunks.push(`Su prioridad CMO actual es ${cmoScore}`);
+  if (cmoSentence) chunks.push(cmoSentence);
   if (interventions.length > 0) chunks.push(`En esta visita se registraron ${interventions.length} intervenciones farmacéuticas`);
   if (questionnaires.length > 0) chunks.push(`También se completaron ${questionnaires.length} cuestionarios de seguimiento`);
   if (visit.notes?.trim()) chunks.push(`Comentario del equipo clínico: ${visit.notes.trim()}`);
   return chunks.length > 0 ? `${chunks.join('. ')}.` : 'En esta visita no se registró información suficiente para ampliar el resumen.';
 }
 
-function deriveClinicalSummary(visit: Visit, cmoScore: number | null, questionnaires: QuestionnaireResponseRecord[]): string {
+function deriveClinicalSummary(visit: Visit, cmoSentence: string, questionnaires: QuestionnaireResponseRecord[]): string {
   return [
-    `Priorización CMO: ${cmoScore !== null ? cmoScore : 'No disponible'}.`,
+    cmoSentence,
     `Cuestionarios con respuesta en la visita: ${questionnaires.length}.`,
     visit.notes?.trim() ? `Evolución clínica documentada: ${visit.notes.trim()}.` : '',
   ]
@@ -204,7 +225,8 @@ export async function loadVisitReportData(visitId: string): Promise<VisitReportL
   const missingFields: string[] = [];
   if (!patientResult.data) missingFields.push('patient');
   if (!visit.visit_date && !visit.scheduled_date) missingFields.push('visit_date');
-  if (!cmoResult.data) missingFields.push('cmo_score');
+  const cmoVisible = patientResult.data?.center?.study_arm === 'cmo';
+  if (cmoVisible && !cmoResult.data) missingFields.push('cmo_score');
   if ((interventionsResult.data ?? []).length === 0) missingFields.push('interventions');
   if ((questionnairesResult.data ?? []).length === 0) missingFields.push('questionnaires');
 
@@ -212,12 +234,11 @@ export async function loadVisitReportData(visitId: string): Promise<VisitReportL
   const interventions = interventionsResult.data ?? [];
   const questionnaires = questionnaireTrace.data;
   const activeMedicationLines = mapActiveMedicationLines(medicationSnapshotResult.data ?? []);
-  const cmoScore = cmoResult.data?.score ?? null;
+  const cmo = describeCmoForReport(cmoResult.data?.score ?? null, cmoResult.data?.priority ?? null, cmoVisible);
 
   const visitTypeLabel = getVisitTypeLabel(visit.visit_type);
   const visitDateLabel = toDateLabel(visit.visit_date ?? visit.scheduled_date);
   const generatedAtLabel = toDateTimeLabel(new Date());
-  const cmoLevel = cmoPriorityLabel(cmoResult.data?.priority);
   const patientLabel = patient?.study_code ? `Paciente ${patient.study_code}` : 'Paciente';
   const questionnaireResults = questionnaires.map(formatQuestionnaireResult);
 
@@ -228,8 +249,8 @@ export async function loadVisitReportData(visitId: string): Promise<VisitReportL
       visitTypeLabel: visitTypeLabel || 'No disponible',
       visitDateLabel,
       generatedAtLabel,
-      simpleSummary: `${patientLabel}. ${deriveSimpleSummary(visit, cmoScore, interventions, questionnaires)}`,
-      cmoLevelLabel: cmoLevel,
+      simpleSummary: `${patientLabel}. ${deriveSimpleSummary(visit, cmo.patientSentence, interventions, questionnaires)}`,
+      cmoLevelLabel: cmo.levelLabel,
       questionnaireResults,
       interventions: interventions.map(formatInterventionItem),
       recommendations: derivePatientRecommendations(interventions),
@@ -244,12 +265,12 @@ export async function loadVisitReportData(visitId: string): Promise<VisitReportL
       visitTypeLabel: visitTypeLabel || 'No disponible',
       visitDateLabel,
       generatedAtLabel,
-      cmoScoreLabel: cmoResult.data ? `${cmoResult.data.score} puntos · ${cmoLevel}` : 'No disponible',
+      cmoScoreLabel: cmo.scoreLabel,
       relevantQuestionnaires: questionnaireResults,
       interventions: interventions.map(formatInterventionItem),
       activeMedications: activeMedicationLines,
-      clinicalSummary: deriveClinicalSummary(visit, cmoScore, questionnaires),
-      careCoordinationRecommendations: deriveCoordinationRecommendations(cmoResult.data?.priority),
+      clinicalSummary: deriveClinicalSummary(visit, cmo.clinicalSentence, questionnaires),
+      careCoordinationRecommendations: cmoVisible ? deriveCoordinationRecommendations(cmoResult.data?.priority) : [],
       institutionalFooter: getInstitutionalFooter(),
     },
     errorMessage: patientResult.errorMessage ?? cmoResult.errorMessage ?? interventionsResult.errorMessage ?? questionnairesResult.errorMessage ?? medicationSnapshotResult.errorMessage ?? null,

@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 
 import { getSexLabel, getVisitTypeLabel } from '../../constants/enums';
 import { getLatestCmoScoreByPatient } from '../../services/cmoScoreService';
+import { canViewCmoResults } from '../../services/cmoStratificationService';
 import { getPatientById, type Patient } from '../../services/patientService';
+import { getCurrentProfile } from '../../services/profileService';
 import { getVisitById, type Visit } from '../../services/visitService';
 import { CmoLevelBadge } from '../ui/CmoLevelBadge';
 
@@ -15,7 +17,7 @@ type VisitTabsProps = {
 };
 
 const TABS: Array<{ key: VisitTab; label: string; path: string }> = [
-  { key: 'clinical', label: 'Datos clínicos', path: 'stratification' },
+  { key: 'clinical', label: 'Estratificación CMO', path: 'stratification' },
   { key: 'medications', label: 'Medicación', path: 'medications' },
   { key: 'interventions', label: 'Intervenciones', path: 'interventions' },
   { key: 'questionnaires', label: 'Cuestionarios', path: 'questionnaires' },
@@ -29,6 +31,7 @@ type VisitContext = {
   patient: Patient | null;
   latestLevel: number | null;
   latestScore: number | null;
+  resultsVisible: boolean;
 };
 
 // Contexto de solo lectura: identifica paciente y visita en todas las pantallas de visita.
@@ -44,18 +47,22 @@ function VisitPatientContext({ visitId }: { visitId: string }) {
       if (!mounted || !visitResult.data) return;
       const visit = visitResult.data;
 
-      const [patientResult, scoreResult] = await Promise.allSettled([
+      const [patientResult, scoreResult, profileResult] = await Promise.allSettled([
         getPatientById(visit.patient_id),
         getLatestCmoScoreByPatient(visit.patient_id),
+        getCurrentProfile(),
       ]);
       if (!mounted) return;
 
       const score = scoreResult.status === 'fulfilled' ? scoreResult.value.data : null;
+      const patient = patientResult.status === 'fulfilled' ? patientResult.value.data : null;
+      const role = profileResult.status === 'fulfilled' ? profileResult.value.data?.role : null;
       setContext({
         visit,
-        patient: patientResult.status === 'fulfilled' ? patientResult.value.data : null,
+        patient,
         latestLevel: score?.priority ?? null,
         latestScore: score?.score ?? null,
+        resultsVisible: canViewCmoResults(patient?.center?.study_arm, role),
       });
     })();
 
@@ -68,7 +75,7 @@ function VisitPatientContext({ visitId }: { visitId: string }) {
     return <div className="visit-context visit-context-loading" aria-hidden="true" />;
   }
 
-  const { visit, patient, latestLevel, latestScore } = context;
+  const { visit, patient, latestLevel, latestScore, resultsVisible } = context;
   const demographics = [
     patient?.sex ? getSexLabel(patient.sex) : null,
     typeof patient?.age_at_inclusion === 'number' ? `${patient.age_at_inclusion} años` : null,
@@ -92,7 +99,13 @@ function VisitPatientContext({ visitId }: { visitId: string }) {
       </div>
       <div className="visit-context-item">
         <span className="visit-context-label">Nivel actual del paciente</span>
-        {latestLevel ? <CmoLevelBadge level={latestLevel} score={latestScore} variant="short" /> : <span className="visit-context-muted">Sin estratificar</span>}
+        {!resultsVisible ? (
+          <span className="visit-context-muted">Centro de atención farmacéutica estándar</span>
+        ) : latestLevel ? (
+          <CmoLevelBadge level={latestLevel} score={latestScore} variant="short" />
+        ) : (
+          <span className="visit-context-muted">Sin estratificar</span>
+        )}
       </div>
     </div>
   );

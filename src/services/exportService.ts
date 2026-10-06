@@ -3,7 +3,9 @@ import * as XLSX from 'xlsx';
 import { getVisitTypeLabel } from '../constants/enums';
 import { supabase } from '../lib/supabase';
 import { buildSavFile } from '../utils/spssWriter';
+import type { StratificationItemValueRow, StratificationRegistryRow } from './cmoStratificationService';
 import { listAllQuestionnaires } from './questionnaireService';
+import { buildStratificationExportRows, stratificationSpssDictionary } from './stratificationExport';
 
 type ExportOutcome = {
   success: boolean;
@@ -18,12 +20,32 @@ type PatientRow = {
   age_at_inclusion: number | null;
   sex: string | null;
   created_at: string | null;
-  center: { code: string } | { code: string }[] | null;
+  center: { code: string; study_arm: string | null } | { code: string; study_arm: string | null }[] | null;
 };
 
+function centerOf(patient: PatientRow | undefined) {
+  return Array.isArray(patient?.center) ? patient?.center[0] : patient?.center;
+}
+
 function centerCodeOf(patient: PatientRow | undefined): string {
-  const center = Array.isArray(patient?.center) ? patient?.center[0] : patient?.center;
-  return center?.code ?? '';
+  return centerOf(patient)?.code ?? '';
+}
+
+function studyArmOf(patient: PatientRow | undefined): string {
+  return centerOf(patient)?.study_arm ?? '';
+}
+
+// PostgREST limita el número de filas por petición (1000 por defecto en Supabase): se pagina.
+async function fetchAllRows<T>(view: string, select: string, orderBy: string): Promise<{ data: T[]; error: { message: string } | null }> {
+  const pageSize = 1000;
+  const rows: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase!.from(view).select(select).order(orderBy, { ascending: true }).range(from, from + pageSize - 1);
+    if (error) return { data: [], error };
+    rows.push(...((data ?? []) as T[]));
+    if (!data || data.length < pageSize) break;
+  }
+  return { data: rows, error: null };
 }
 
 type VisitRow = {
@@ -52,6 +74,8 @@ type InterventionRow = {
   linked_to_cmo_level: number | null;
   outcome: string | null;
   notes: string | null;
+  catalog_code: string | null;
+  catalog_version: string | null;
   created_at: string | null;
 };
 
@@ -267,6 +291,11 @@ function inferSpsFormatByHeader(header: string): { format: string; type: 'numeri
     return { format: 'EDATE10', type: 'numeric' };
   }
 
+  // Variables codificadas de la estratificación CMO (0/1/2/9) e indicadores del registro.
+  if (/^(cmo_|inf_)/.test(header) || ['motivo_estratificacion', 'regla_especial', 'incompleta', 'n_desconocidas'].includes(header)) {
+    return { format: 'F2.0', type: 'numeric' };
+  }
+
   if (
     header.includes('score') ||
     header.includes('nivel') ||
@@ -395,11 +424,13 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     interventionsResult,
     questionnairesResult,
     patientMedicationsResult,
+    stratificationRegistryResult,
+    stratificationItemsResult,
   ] = await Promise.all([
-    supabase.from('patients').select('id,study_code,inclusion_date,age_at_inclusion,sex,created_at,center:centers(code)').order('created_at', { ascending: true }),
+    supabase.from('patients').select('id,study_code,inclusion_date,age_at_inclusion,sex,created_at,center:centers(code,study_arm)').order('created_at', { ascending: true }),
     supabase.from('visits').select('id,patient_id,visit_type,visit_number,visit_date,scheduled_date,created_at').order('created_at', { ascending: true }),
     supabase.from('cmo_scores').select('visit_id,score,priority'),
-    supabase.from('interventions').select('id,visit_id,intervention_type,intervention_domain,priority_level,delivered,linked_to_cmo_level,outcome,notes,created_at').order('created_at', { ascending: true }),
+    supabase.from('interventions').select('id,visit_id,intervention_type,intervention_domain,priority_level,delivered,linked_to_cmo_level,outcome,notes,catalog_code,catalog_version,created_at').order('created_at', { ascending: true }),
     listAllQuestionnaires(),
     supabase
       .from('patient_medications')
@@ -407,6 +438,17 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
         'id,patient_id,medication_catalog_id,catalog_concept_id,catalog_product_id,selection_source,selected_label_snapshot,dose_text,frequency_text,route_text,indication,start_date,end_date,is_active,notes,created_at,updated_at,medication_catalog:medication_catalog_id(display_name,active_ingredient,atc_code)',
       )
       .order('created_at', { ascending: true }),
+    // Vistas enmascaradas: en centros del brazo estándar las columnas de resultado llegan vacías (D5).
+    fetchAllRows<StratificationRegistryRow>(
+      'cmo_stratification_registry',
+      'id,visit_id,patient_id,center_id,study_arm,visit_type,visit_number,visit_date,scheduled_date,stratification_reason,engine_version,model_version,incomplete,unknown_count,unknown_variables,created_at,updated_at,results_visible,score,priority,special_rule_applied,block_scores',
+      'created_at',
+    ),
+    fetchAllRows<StratificationItemValueRow>(
+      'cmo_stratification_item_values',
+      'id,cmo_score_id,visit_id,variable_code,label,block,sort_order,is_scored,model_version,raw_value,item_score',
+      'id',
+    ),
   ]);
 
   const firstError = [
@@ -416,6 +458,8 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     interventionsResult.error,
     questionnairesResult.errorMessage ? { message: questionnairesResult.errorMessage } : null,
     patientMedicationsResult.error,
+    stratificationRegistryResult.error,
+    stratificationItemsResult.error,
   ].find(Boolean);
 
   if (firstError) {
@@ -477,6 +521,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     return {
       patient_id: anonymizedPatientIdByRawId.get(patient.id) ?? '',
       center_code: centerCodeOf(patient),
+      study_arm: studyArmOf(patient),
       study_code: patient.study_code,
       inclusion_date: patient.inclusion_date,
       age_at_inclusion: patient.age_at_inclusion,
@@ -525,6 +570,8 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     priority_level: intervention.priority_level,
     delivered: intervention.delivered,
     linked_to_cmo_level: intervention.linked_to_cmo_level,
+    catalog_code: intervention.catalog_code ?? '',
+    catalog_version: intervention.catalog_version ?? '',
     outcome: intervention.outcome,
     notes: intervention.notes,
   }));
@@ -551,6 +598,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
       study_code: patient?.study_code ?? '',
       patient_id: anonymizedPatientIdByRawId.get(visit.patient_id) ?? '',
       center_code: centerCodeOf(patient),
+      study_arm: studyArmOf(patient),
       visit_type: getVisitTypeLabel(visit.visit_type),
       visit_number: visit.visit_number,
       visit_date: visit.visit_date,
@@ -605,7 +653,16 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     }));
   });
 
+  const patientById = new Map(patients.map((patient) => [patient.id, patient]));
+  const cmoStratificationRows = buildStratificationExportRows(stratificationRegistryResult.data, stratificationItemsResult.data, {
+    patientIdAnon: (rawId) => anonymizedPatientIdByRawId.get(rawId) ?? '',
+    visitIdAnon: (rawId) => anonymizedVisitIdByRawId.get(rawId) ?? '',
+    centerCode: (rawId) => centerCodeOf(patientById.get(rawId)),
+    visitTypeLabel: (visitType) => getVisitTypeLabel(visitType),
+  });
+
   const normalizedPatientsRows = normalizeRowsForExport(patientsCsvRows);
+  const normalizedCmoStratificationRows = normalizeRowsForExport(cmoStratificationRows);
   const normalizedVisitsRows = normalizeRowsForExport(visitsCsvRows);
   const normalizedStratificationRows = normalizeRowsForExport(stratificationCsvRows);
   const normalizedInterventionsRows = normalizeRowsForExport(interventionsCsvRows);
@@ -616,7 +673,17 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
   const patientsCsv = toCsv(Object.keys(normalizedPatientsRows[0] ?? { patient_id: '' }), normalizedPatientsRows);
   const visitsCsv = toCsv(['visit_id', 'patient_id', 'visit_type', 'visit_number', 'visit_date', 'scheduled_date'], normalizedVisitsRows);
   const stratificationCsv = toCsv(Object.keys(normalizedStratificationRows[0] ?? { visit_id: '', patient_id: '' }), normalizedStratificationRows);
-  const interventionsCsv = toCsv(['intervention_id', 'visit_id', 'intervention_type', 'intervention_domain', 'cmo_pillar', 'priority_level', 'delivered', 'linked_to_cmo_level', 'outcome', 'notes'], normalizedInterventionsRows);
+  const interventionsCsv = toCsv(['intervention_id', 'visit_id', 'intervention_type', 'intervention_domain', 'cmo_pillar', 'priority_level', 'delivered', 'linked_to_cmo_level', 'catalog_code', 'catalog_version', 'outcome', 'notes'], normalizedInterventionsRows);
+  const cmoStratificationHeaders = Object.keys(normalizedCmoStratificationRows[0] ?? { stratification_id: '' });
+  const cmoStratificationCsv = toCsv(cmoStratificationHeaders, normalizedCmoStratificationRows);
+  const cmoDictionary = stratificationSpssDictionary();
+  const cmoStratificationSps = buildSpsSyntax({
+    csvFileName: 'estratificaciones_cmo.csv',
+    datasetName: 'Estratificaciones CMO-DERMAPEX',
+    headers: cmoStratificationHeaders,
+    variableLabels: cmoDictionary.variableLabels,
+    categoricalValueLabels: cmoDictionary.valueLabels,
+  });
   const questionnairesCsv = toCsv(Object.keys(normalizedQuestionnairesRows[0] ?? { patient_id: '' }), normalizedQuestionnairesRows);
   const datasetMaestroCsv = toCsv(Object.keys(normalizedDatasetMaestroRows[0] ?? {}), normalizedDatasetMaestroRows);
   const medicationByVisitCsv = toCsv(Object.keys(normalizedMedicationByVisitRows[0] ?? { visit_id: '', patient_id: '' }), normalizedMedicationByVisitRows);
@@ -627,6 +694,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     headers: Object.keys(normalizedDatasetMaestroRows[0] ?? {}),
     variableLabels: {
       patient_id: 'Identificador anonimizado del paciente',
+      study_arm: 'Cohorte del centro (cmo / standard)',
       visit_date: 'Fecha de visita',
       active_medications_count: 'Número de medicamentos activos',
       polypharmacy: 'Indicador de polifarmacia (>=5)',
@@ -664,6 +732,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     study_code: 'Codigo de estudio',
     patient_id: 'Identificador anonimizado del paciente',
     center_code: 'Codigo de centro participante',
+    study_arm: 'Cohorte del centro (cmo = AF CMO-MAPEX; standard = AF estandar)',
     visit_type: 'Tipo de visita',
     visit_number: 'Numero de visita',
     visit_date: 'Fecha de visita',
@@ -721,6 +790,8 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
   downloadCsv('intervenciones.csv', interventionsCsv);
   downloadCsv('cuestionarios.csv', questionnairesCsv);
   downloadCsv('dataset_maestro.csv', datasetMaestroCsv);
+  downloadCsv('estratificaciones_cmo.csv', cmoStratificationCsv);
+  downloadTextFile('estratificaciones_cmo.sps', cmoStratificationSps);
   downloadCsv('medicacion_por_visita.csv', medicationByVisitCsv);
   downloadTextFile('dataset_maestro.sps', datasetMaestroSps);
   downloadTextFile('medicacion_por_visita.sps', medicationByVisitSps);
@@ -730,6 +801,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     { name: 'Pacientes', rows: normalizedPatientsRows },
     { name: 'Visitas', rows: normalizedVisitsRows },
     { name: 'Estratificacion', rows: normalizedStratificationRows },
+    { name: 'EstratificacionCMO', rows: normalizedCmoStratificationRows },
     { name: 'Intervenciones', rows: normalizedInterventionsRows },
     { name: 'Medicacion', rows: normalizedMedicationByVisitRows },
     { name: 'Cuestionarios', rows: normalizedQuestionnairesRows },
@@ -742,6 +814,11 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
   if (maestroHeaders.length > 0) {
     const maestroSav = buildSavFile(maestroHeaders, maestroVarLabels, maestroValueLabels, normalizedDatasetMaestroRows, 'Dataset Maestro DERMAPEX');
     downloadBinaryFile('dataset_maestro.sav', maestroSav, 'application/x-spss-sav');
+  }
+
+  if (normalizedCmoStratificationRows.length > 0) {
+    const cmoSav = buildSavFile(cmoStratificationHeaders, cmoDictionary.variableLabels, cmoDictionary.valueLabels, normalizedCmoStratificationRows, 'Estratificaciones CMO-DERMAPEX');
+    downloadBinaryFile('estratificaciones_cmo.sav', cmoSav, 'application/x-spss-sav');
   }
 
   const medHeaders = Object.keys(normalizedMedicationByVisitRows[0] ?? {});
@@ -760,6 +837,9 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
       'intervenciones.csv',
       'cuestionarios.csv',
       'dataset_maestro.csv',
+      'estratificaciones_cmo.csv',
+      'estratificaciones_cmo.sps',
+      'estratificaciones_cmo.sav',
       'medicacion_por_visita.csv',
       'dataset_maestro.sps',
       'medicacion_por_visita.sps',

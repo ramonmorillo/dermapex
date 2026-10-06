@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import type { StudyArm } from '../constants/dermapexStudyConfig';
 import type { SexType } from '../constants/enums';
 
 // Paciente seudonimizado: solo código de estudio. Sin identificadores directos ni fecha de nacimiento
@@ -13,7 +14,8 @@ export type Patient = {
   sex: SexType | null;
   consent_signed: boolean | null;
   created_at?: string;
-  center?: { id: string; code: string; name: string } | null;
+  /** study_arm: cohorte del centro (D5). null = centro aún sin cohorte asignada. */
+  center?: { id: string; code: string; name: string; study_arm: StudyArm | null } | null;
 };
 
 export type NewPatientInput = Omit<Patient, 'id' | 'created_at' | 'center'>;
@@ -35,7 +37,7 @@ function normalizePatient(row: PatientRow): Patient {
 }
 
 const PATIENT_SELECT =
-  'id,center_id,study_code,inclusion_date,screening_date,age_at_inclusion,sex,consent_signed,created_at,center:centers(id,code,name)';
+  'id,center_id,study_code,inclusion_date,screening_date,age_at_inclusion,sex,consent_signed,created_at,center:centers(id,code,name,study_arm)';
 
 export async function listPatients(searchStudyCode?: string): Promise<{ data: Patient[]; errorMessage: string | null }> {
   if (!supabase) {

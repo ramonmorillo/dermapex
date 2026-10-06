@@ -1,7 +1,6 @@
 import { createHashRouter, Navigate } from 'react-router-dom';
 
 import { AppShell } from './components/layout/AppShell';
-import { BaselineStratificationPage } from './pages/BaselineStratificationPage';
 import { ConfirmEmailLinkPage } from './pages/ConfirmEmailLinkPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
@@ -17,6 +16,7 @@ import { VisitMedicationsPage } from './pages/VisitMedicationsPage';
 import { VisitQuestionnairesPage } from './pages/VisitQuestionnairesPage';
 import { VisitDocumentsPage } from './pages/VisitDocumentsPage';
 import { VisitReportsPage } from './pages/VisitReportsPage';
+import { VisitStratificationPage } from './pages/VisitStratificationPage';
 import { VisitProcessPage } from './pages/VisitProcessPage';
 
 export const router = createHashRouter([
@@ -51,7 +51,7 @@ export const router = createHashRouter([
       { path: '/patients/:id', element: <PatientDetailPage /> },
       { path: '/patients/:id/visits/new', element: <NewVisitPage /> },
       { path: '/patients/:id/visits/:visitId', element: <NewVisitPage /> },
-      { path: '/visits/:visitId/stratification', element: <BaselineStratificationPage /> },
+      { path: '/visits/:visitId/stratification', element: <VisitStratificationPage /> },
       { path: '/visits/:visitId/medications', element: <VisitMedicationsPage /> },
       { path: '/visits/:visitId/interventions', element: <VisitInterventionsPage /> },
       { path: '/visits/:visitId/questionnaires', element: <VisitQuestionnairesPage /> },

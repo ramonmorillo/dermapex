@@ -25,9 +25,12 @@ import {
 import { PatientMedicationSummary } from '../features/medications/PatientMedicationSummary';
 import { getLatestMedicationReviewDate, listActivePatientMedications } from '../features/medications/medicationsService';
 import type { PatientMedication } from '../features/medications/types';
+import { STUDY_ARM_LABEL, getStratificationReasonLabel } from '../constants/dermapexStudyConfig';
 import { getLatestCmoScoreByPatient, listCmoScoresByPatient, type CmoScoreHistoryEntry, type CmoScoreRecord } from '../services/cmoScoreService';
+import { canViewCmoResults, listPatientStratifications, type StratificationRegistryRow } from '../services/cmoStratificationService';
 import { listInterventionsByPatient, type PriorityLevel } from '../services/interventionService';
 import { getPatientById, type Patient } from '../services/patientService';
+import { getCurrentProfile, type CurrentProfile } from '../services/profileService';
 import { getQuestionnairesByPatient, isQuestionnaireVisitType, type QuestionnaireResponseRecord } from '../services/questionnaireService';
 import { listVisitsByPatient, updateVisit, type Visit } from '../services/visitService';
 import { getFollowupStatus } from '../utils/followupStatus';
@@ -35,9 +38,9 @@ import { getFollowupStatus } from '../utils/followupStatus';
 const REQUIRED_QUESTIONNAIRES = ['iexpac', 'morisky', 'eq5d'] as const;
 
 const PRIORITY_LEVEL_LABEL: Record<PriorityLevel, string> = {
-  high: '1 · Prioridad',
-  medium: '2 · Intermedio',
-  low: '3 · Basal',
+  high: 'Prioridad alta',
+  medium: 'Prioridad media',
+  low: 'Prioridad baja',
 };
 
 function toSortTs(dateLike: string | null): number {
@@ -108,6 +111,8 @@ export function PatientDetailPage() {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [latestCmoScore, setLatestCmoScore] = useState<CmoScoreRecord | null>(null);
   const [cmoHistory, setCmoHistory] = useState<CmoScoreHistoryEntry[]>([]);
+  const [stratifications, setStratifications] = useState<StratificationRegistryRow[]>([]);
+  const [profile, setProfile] = useState<CurrentProfile | null>(null);
   const [interventions, setInterventions] = useState<Array<{ id: string; visit_id: string; intervention_type: string; priority_level: PriorityLevel | null }>>([]);
   const [questionnaires, setQuestionnaires] = useState<QuestionnaireResponseRecord[]>([]);
   const [activeMedications, setActiveMedications] = useState<PatientMedication[]>([]);
@@ -143,6 +148,8 @@ export function PatientDetailPage() {
           questionnairesResult,
           medicationsResult,
           latestMedicationReviewResult,
+          stratificationsResult,
+          profileResult,
         ] = await Promise.allSettled([
           getLatestCmoScoreByPatient(id),
           listCmoScoresByPatient(id),
@@ -150,7 +157,12 @@ export function PatientDetailPage() {
           getQuestionnairesByPatient(id),
           listActivePatientMedications(id),
           getLatestMedicationReviewDate(id),
+          listPatientStratifications(id),
+          getCurrentProfile(),
         ]);
+
+        setStratifications(stratificationsResult.status === 'fulfilled' ? stratificationsResult.value.data : []);
+        setProfile(profileResult.status === 'fulfilled' ? profileResult.value.data : null);
 
         if (cmoResult.status === 'fulfilled') {
           setLatestCmoScore(cmoResult.value.data);
@@ -317,10 +329,15 @@ export function PatientDetailPage() {
   const cmoHistoryAsc = useMemo(() => [...cmoHistoryDesc].reverse(), [cmoHistoryDesc]);
   const formatHistoryLabel = (entry: CmoScoreHistoryEntry) =>
     entry.visit_number != null ? `V${entry.visit_number}` : 'Extraordinaria';
+  const stratificationByVisitId = new Map(stratifications.map((entry) => [entry.visit_id, entry]));
 
   if (loading) return <LoadingState label="Cargando ficha..." />;
   if (errorMessage) return <ErrorState title="No se pudo cargar la ficha" message={errorMessage} />;
   if (!patient) return <EmptyState title="Paciente no encontrado" description="Verifica el identificador o vuelve al listado." />;
+
+  // D5: resultados CMO visibles para coordinación y centros de la cohorte CMO (la RLS ya lo impone).
+  const studyArm = patient.center?.study_arm ?? null;
+  const resultsVisible = canViewCmoResults(studyArm, profile?.role);
 
   const questionnaireRows = [
     { key: 'iexpac', label: 'IEXPAC', baseline: baselineIexpac, final: finalIexpac },
@@ -342,12 +359,13 @@ export function PatientDetailPage() {
         studyCode={patient.study_code}
         sexLabel={getSexLabel(patient.sex)}
         age={patient.age_at_inclusion}
-        level={latestCmoScore?.priority ?? null}
-        score={latestCmoScore?.score ?? null}
+        level={resultsVisible ? latestCmoScore?.priority ?? null : null}
+        score={resultsVisible ? latestCmoScore?.score ?? null : null}
         lastVisitDate={followupStatus.lastAttendedDate}
         followup={followupStatus}
         details={[
           { label: 'Centro', value: patient.center ? `${patient.center.code} · ${patient.center.name}` : '-' },
+          { label: 'Cohorte', value: studyArm ? STUDY_ARM_LABEL[studyArm] : 'Sin asignar' },
           {
             label: 'Consentimiento',
             value: patient.consent_signed ? <StatusBadge tone="positive">Sí</StatusBadge> : <StatusBadge tone="warning">No</StatusBadge>,
@@ -360,7 +378,7 @@ export function PatientDetailPage() {
             </Link>
             {latestVisitId ? (
               <Link className="button-link button-secondary" to={`/visits/${latestVisitId}/stratification`}>
-                Estratificación basal
+                Estratificar última visita
               </Link>
             ) : null}
           </>
@@ -396,8 +414,8 @@ export function PatientDetailPage() {
                   visitType: visit.visit_type,
                   date: visit.visit_date ?? visit.scheduled_date ?? null,
                   status: visit.visit_status,
-                  level: scoreEntry?.priority ?? null,
-                  score: scoreEntry?.score ?? null,
+                  level: resultsVisible ? scoreEntry?.priority ?? null : null,
+                  score: resultsVisible ? scoreEntry?.score ?? null : null,
                   href: `/visits/${visit.id}/stratification`,
                 };
               })}
@@ -409,7 +427,7 @@ export function PatientDetailPage() {
                     <th>Tipo</th>
                     <th>Fecha</th>
                     <th>Estado</th>
-                    <th className="num">Score CMO</th>
+                    <th className="num">Puntuación CMO</th>
                     <th>Nivel CMO</th>
                     <th>Cuestionarios</th>
                     <th className="num">Intervenciones</th>
@@ -441,8 +459,16 @@ export function PatientDetailPage() {
                             <span className="visually-hidden">{getVisitStatusLabel(visit.visit_status)}</span>
                           </div>
                         </td>
-                        <td className="num strong">{scoreEntry ? scoreEntry.score : '-'}</td>
-                        <td>{scoreEntry ? <CmoLevelBadge level={scoreEntry.priority} variant="short" /> : <span className="cell-muted">-</span>}</td>
+                        <td className="num strong">{resultsVisible && scoreEntry ? scoreEntry.score : '-'}</td>
+                        <td>
+                          {resultsVisible && scoreEntry ? (
+                            <CmoLevelBadge level={scoreEntry.priority} variant="short" />
+                          ) : !resultsVisible && stratificationByVisitId.has(visit.id) ? (
+                            <span className="cell-muted">Registrada</span>
+                          ) : (
+                            <span className="cell-muted">-</span>
+                          )}
+                        </td>
                         <td>
                           {!isQuestionnaireVisitType(visit.visit_type) ? <span className="cell-muted">-</span> : (
                             <StatusBadge tone={questionnairesReady ? 'positive' : 'warning'}>
@@ -454,9 +480,9 @@ export function PatientDetailPage() {
                         <td>
                           <div className="table-actions">
                             <Link to={`/patients/${id}/visits/${visit.id}`}>Detalle visita</Link>
-                            <Link to={`/visits/${visit.id}/stratification`}>Evaluación clínica</Link>
+                            <Link to={`/visits/${visit.id}/stratification`}>Estratificación</Link>
                             <Link to={`/visits/${visit.id}/medications`}>Medicación</Link>
-                            <Link to={`/visits/${visit.id}/interventions`}>Intervenciones</Link>
+                            {studyArm === 'cmo' ? <Link to={`/visits/${visit.id}/interventions`}>Intervenciones</Link> : null}
                             {isQuestionnaireVisitType(visit.visit_type) ? <Link to={`/visits/${visit.id}/questionnaires`}>Cuestionarios</Link> : null}
                           </div>
                         </td>
@@ -470,6 +496,58 @@ export function PatientDetailPage() {
         )}
       </section>
 
+      <section className="card" aria-labelledby="patient-stratification-history">
+        <SectionHeader
+          id="patient-stratification-history"
+          title="Historial de estratificaciones CMO"
+          description={resultsVisible
+            ? 'Una estratificación por visita (motivo obligatorio). Mayor puntuación = mayor complejidad.'
+            : `${STUDY_ARM_LABEL.standard}: se muestran fecha, motivo y versión; la puntuación y el nivel no se muestran en este centro.`}
+        />
+        {stratifications.length === 0 ? (
+          <p className="empty-inline">Sin estratificaciones registradas.</p>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Visita</th>
+                  <th>Motivo</th>
+                  <th className="num">Puntuación</th>
+                  <th>Nivel</th>
+                  <th>Completitud</th>
+                  <th>Versión del motor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stratifications.map((entry) => (
+                  <tr key={entry.id}>
+                    <td className="numeric">{entry.visit_date ?? entry.scheduled_date ?? entry.created_at.slice(0, 10)}</td>
+                    <td>{getVisitTypeLabel(entry.visit_type)}</td>
+                    <td>{getStratificationReasonLabel(entry.stratification_reason)}</td>
+                    <td className="num strong">{entry.results_visible && entry.score !== null ? entry.score : <span className="cell-muted">No visible</span>}</td>
+                    <td>
+                      {entry.results_visible && entry.priority ? (
+                        <>
+                          <CmoLevelBadge level={entry.priority} variant="short" />
+                          {entry.special_rule_applied ? <span className="help-text"> · regla especial</span> : null}
+                        </>
+                      ) : (
+                        <span className="cell-muted">No visible</span>
+                      )}
+                    </td>
+                    <td>{entry.incomplete ? <StatusBadge tone="warning">{entry.unknown_count} desconocida(s)</StatusBadge> : <StatusBadge tone="positive">Completa</StatusBadge>}</td>
+                    <td className="cell-muted">{entry.engine_version ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {resultsVisible ? (
       <section className="card" aria-labelledby="patient-cmo-evolution">
         <SectionHeader
           id="patient-cmo-evolution"
@@ -526,9 +604,10 @@ export function PatientDetailPage() {
             ) : null}
           </>
         ) : (
-          <p className="empty-inline">Sin puntuación CMO registrada. La estratificación CMO-DERMAPEX está pendiente de implementación.</p>
+          <p className="empty-inline">Sin puntuación CMO registrada.</p>
         )}
       </section>
+      ) : null}
 
       {/* PENDIENTE DERMAPEX: alimentar con el historial de variables clínicas cuando exista su servicio. */}
       <BaselineTrendPanel entries={[]} />
