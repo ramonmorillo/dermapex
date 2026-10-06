@@ -208,6 +208,23 @@ async function findProductByCimaCn(cimaCn: string): Promise<MedCatalogProduct | 
   return (data as MedCatalogProduct | null) ?? null;
 }
 
+async function findProductByNRegistro(nregistro: string): Promise<MedCatalogProduct | null> {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data } = await supabase
+    .from('med_catalog_products')
+    .select(PRODUCT_SELECT)
+    .eq('source', 'external_cima')
+    .eq('cima_nregistro', nregistro)
+    .is('cima_cn', null)
+    .limit(1)
+    .maybeSingle();
+
+  return (data as MedCatalogProduct | null) ?? null;
+}
+
 async function insertProduct(
   conceptId: string,
   candidate: NormalizedMedicationCandidate,
@@ -328,14 +345,17 @@ export async function upsertNormalizedMedicationFromExternal(
     };
   }
 
-  if (candidate.cimaCn) {
-    const existingProduct = await findProductByCimaCn(candidate.cimaCn);
-    if (existingProduct) {
-      return {
-        data: { conceptId: existingProduct.concept_id, productId: existingProduct.id },
-        errorMessage: null,
-      };
-    }
+  // Producto ya normalizado: por CN o, si CIMA no da CN (listado), por n.º de registro.
+  const existingProduct = candidate.cimaCn
+    ? await findProductByCimaCn(candidate.cimaCn)
+    : candidate.cimaNRegistro
+      ? await findProductByNRegistro(candidate.cimaNRegistro)
+      : null;
+  if (existingProduct) {
+    return {
+      data: { conceptId: existingProduct.concept_id, productId: existingProduct.id },
+      errorMessage: null,
+    };
   }
 
   const ingredientIds: string[] = [];

@@ -104,6 +104,13 @@ function normalizeMedicationCatalogItem(record: MedicationCatalogItem): Medicati
   };
 }
 
+/** Código de origen CIMA: código nacional si existe; si no, «nreg:<n.º de registro>». */
+export function cimaSourceCode(cn: unknown, nregistro: unknown): string | null {
+  if (typeof cn === 'string' && cn.trim()) return cn.trim();
+  if (typeof nregistro === 'string' && nregistro.trim()) return `nreg:${nregistro.trim()}`;
+  return null;
+}
+
 function buildExternalMedicationLabel(payload: Record<string, unknown>): string {
   const name = typeof payload.cima_name === 'string' && payload.cima_name.trim().length > 0 ? payload.cima_name.trim() : 'Medicamento externo';
   return name;
@@ -348,7 +355,7 @@ export async function searchExternalMedicationCatalog(query: string): Promise<Se
       label: buildExternalMedicationLabel(payload),
       source: 'external_cima' as const,
       sourceLabel: 'CIMA (cache local)' as const,
-      sourceCode: typeof payload.cima_cn === 'string' ? payload.cima_cn : null,
+      sourceCode: cimaSourceCode(payload.cima_cn, payload.cima_nregistro),
       payload,
     };
   });
@@ -364,14 +371,16 @@ export async function searchExternalMedicationCatalog(query: string): Promise<Se
     };
   }
 
+  // Un resultado remoto ya presente en la caché local (mismo n.º de registro o CN) no se repite.
   const knownExternalCodes = new Set(
-    localMapped
-      .map((item) => (typeof item.payload.cima_cn === 'string' ? item.payload.cima_cn.trim() : ''))
-      .filter((value) => value.length > 0),
+    localMapped.map((item) => item.sourceCode).filter((value): value is string => Boolean(value)),
   );
 
   const remoteMapped: ExternalMedicationSearchItem[] = remoteResult.data
-    .filter((item) => !item.cima_cn || !knownExternalCodes.has(item.cima_cn.trim()))
+    .filter((item) => {
+      const code = cimaSourceCode(item.cima_cn, item.cima_nregistro);
+      return !code || !knownExternalCodes.has(code);
+    })
     .map((item) => {
       const payload: Record<string, unknown> = {
         ...item.raw_payload,
@@ -379,6 +388,7 @@ export async function searchExternalMedicationCatalog(query: string): Promise<Se
         cima_cn: item.cima_cn,
         cima_nregistro: item.cima_nregistro,
         cima_name: item.cima_name,
+        ingredient_names: item.ingredient_names,
         labtitular: item.labtitular,
         pharmaceutical_form: item.pharmaceutical_form,
         pharmaceutical_form_simplified: item.pharmaceutical_form_simplified,
@@ -397,7 +407,7 @@ export async function searchExternalMedicationCatalog(query: string): Promise<Se
         label: buildExternalMedicationLabel(payload),
         source: 'external_cima',
         sourceLabel: 'CIMA (remoto)',
-        sourceCode: item.cima_cn,
+        sourceCode: cimaSourceCode(item.cima_cn, item.cima_nregistro),
         payload,
       };
     });
@@ -446,7 +456,9 @@ export async function importExternalMedicationToVisit(input: {
     return { data: [], errorMessage: normalizedResult.errorMessage ?? 'No se pudo normalizar el medicamento externo.', newMedicationId: null };
   }
 
-  const sourceCode = (candidate.cimaCn ?? normalizedResult.data.productId ?? '').trim() || null;
+  // Identificador estable del medicamento en el catálogo local: CN si es inequívoco; si no, el n.º de
+  // registro AEMPS (el listado de CIMA identifica por nregistro). El id interno solo como último recurso.
+  const sourceCode = cimaSourceCode(candidate.cimaCn, candidate.cimaNRegistro) ?? normalizedResult.data.productId;
   const localCatalogResult = await ensureExternalMedicationCatalogItem({
     sourceCode,
     displayName: resolvedDisplayName,
