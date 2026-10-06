@@ -7,6 +7,8 @@ export type CimaMedicationSearchDto = {
   cima_cn: string | null;
   cima_nregistro: string | null;
   cima_name: string;
+  /** Principios activos según CIMA (principiosActivos / pactivos / vtm). */
+  ingredient_names: string[];
   labtitular: string | null;
   pharmaceutical_form: string | null;
   pharmaceutical_form_simplified: string | null;
@@ -75,6 +77,7 @@ function mapRemoteItem(item: unknown): CimaMedicationSearchDto | null {
     cima_cn: readString(record.cima_cn),
     cima_nregistro: readString(record.cima_nregistro),
     cima_name: cimaName,
+    ingredient_names: readStringArray(record.ingredient_names),
     labtitular: readString(record.labtitular),
     pharmaceutical_form: readString(record.pharmaceutical_form),
     pharmaceutical_form_simplified: readString(record.pharmaceutical_form_simplified),

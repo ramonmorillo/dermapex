@@ -1,169 +1,62 @@
+// Edge Function: búsqueda en CIMA (AEMPS) para la medicación del paciente. Proxy de una API pública
+// gratuita (evita CORS en el navegador). Requiere usuario autenticado (verify_jwt por defecto).
+// La transformación de datos vive en cimaMapping.ts (probada en tests/cimaMapping.test.ts).
+import { buildCimaSearchUrls, extractItems, mergeCimaResults, normalizeCimaMedication } from './cimaMapping.ts';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-region',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-type CimaSearchRequest = {
-  query?: string;
-  limit?: number;
-};
-
-type CimaItem = Record<string, unknown>;
+const CIMA_TIMEOUT_MS = 10000;
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: {
-      ...CORS_HEADERS,
-      'Content-Type': 'application/json; charset=utf-8',
-    },
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' },
   });
 }
 
-function cleanString(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null;
+async function fetchCima(url: string): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CIMA_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    if (response.status === 204) return { resultados: [] };
+    if (!response.ok) throw new Error(`CIMA respondió con estado ${response.status}.`);
+    const text = await response.text();
+    return text.trim() ? JSON.parse(text) : { resultados: [] };
+  } finally {
+    clearTimeout(timer);
   }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function toStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .map((entry) => {
-        if (typeof entry === 'string') {
-          return entry.trim();
-        }
-
-        if (entry && typeof entry === 'object') {
-          const name = cleanString((entry as Record<string, unknown>).nombre);
-          const code = cleanString((entry as Record<string, unknown>).codigo);
-          return name ?? code ?? null;
-        }
-
-        return null;
-      })
-      .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
-  }
-
-  if (typeof value === 'string' && value.trim().length > 0) {
-    return value
-      .split(/[;,|]/)
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
-function extractItems(responseData: unknown): CimaItem[] {
-  if (Array.isArray(responseData)) {
-    return responseData.filter((entry): entry is CimaItem => Boolean(entry && typeof entry === 'object'));
-  }
-
-  if (!responseData || typeof responseData !== 'object') {
-    return [];
-  }
-
-  const asRecord = responseData as Record<string, unknown>;
-  const candidates = ['resultados', 'results', 'medicamentos', 'contenido', 'items'];
-
-  for (const key of candidates) {
-    const value = asRecord[key];
-    if (Array.isArray(value)) {
-      return value.filter((entry): entry is CimaItem => Boolean(entry && typeof entry === 'object'));
-    }
-  }
-
-  return [];
-}
-
-function normalizeCimaMedication(item: CimaItem, fetchedAt: string) {
-  const cimaCn = cleanString(item.cn);
-  const cimaNRegistro = cleanString(item.nregistro);
-  const cimaName = cleanString(item.nombre) ?? 'Medicamento CIMA';
-  const labtitular = cleanString(item.labtitular);
-  const authorizationStatus = cleanString(item.estado);
-  const pharmaceuticalForm = cleanString((item.formaFarmaceutica as Record<string, unknown> | undefined)?.nombre ?? item.formaFarmaceutica);
-  const pharmaceuticalFormSimplified = cleanString(
-    (item.formaFarmaceuticaSimplificada as Record<string, unknown> | undefined)?.nombre ?? item.formaFarmaceuticaSimplificada,
-  );
-  const atcCodes = toStringArray(item.atcs).length > 0 ? toStringArray(item.atcs) : toStringArray(item.atc);
-  const routes =
-    toStringArray(item.viasAdministracion).length > 0
-      ? toStringArray(item.viasAdministracion)
-      : toStringArray(item.viaAdministracion);
-
-  return {
-    id: cimaCn ?? cimaNRegistro ?? cimaName,
-    source: 'external_cima_remote' as const,
-    source_label: 'CIMA remoto',
-    cima_cn: cimaCn,
-    cima_nregistro: cimaNRegistro,
-    cima_name: cimaName,
-    labtitular,
-    pharmaceutical_form: pharmaceuticalForm,
-    pharmaceutical_form_simplified: pharmaceuticalFormSimplified,
-    routes,
-    atc_codes: atcCodes,
-    authorization_status: authorizationStatus,
-    commercialized: typeof item.comerc === 'boolean' ? item.comerc : null,
-    vmpp: cleanString(item.vmpp),
-    vmp: cleanString(item.vmp),
-    dose: cleanString(item.dosis),
-    raw_payload: item,
-    fetched_at: fetchedAt,
-  };
-}
-
-async function searchCima(query: string, limit: number) {
-  const endpoint = new URL('https://cima.aemps.es/cima/rest/medicamentos');
-  endpoint.searchParams.set('nombre', query);
-  endpoint.searchParams.set('comerc', '1');
-  endpoint.searchParams.set('autorizados', '1');
-
-  const response = await fetch(endpoint.toString(), {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`CIMA respondió con estado ${response.status}.`);
-  }
-
-  const json = await response.json();
-  const items = extractItems(json);
-  const fetchedAt = new Date().toISOString();
-
-  return items.slice(0, limit).map((item) => normalizeCimaMedication(item, fetchedAt));
 }
 
 Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS_HEADERS });
-  }
-
-  if (request.method !== 'POST') {
-    return jsonResponse(405, { error: 'Method not allowed' });
-  }
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
+  if (request.method !== 'POST') return jsonResponse(405, { error: 'Método no permitido' });
 
   try {
-    const body = (await request.json()) as CimaSearchRequest;
+    const body = (await request.json()) as { query?: string; limit?: number };
     const query = (body.query ?? '').trim();
     const limit = Math.max(1, Math.min(50, Number(body.limit ?? 20)));
+    if (query.length < 2) return jsonResponse(200, { items: [] });
 
-    if (query.length < 2) {
-      return jsonResponse(200, { items: [] });
+    const fetchedAt = new Date().toISOString();
+    const settled = await Promise.allSettled(buildCimaSearchUrls(query).map(fetchCima));
+    const lists = settled
+      .filter((result): result is PromiseFulfilledResult<unknown> => result.status === 'fulfilled')
+      .map((result) => extractItems(result.value).map((item) => normalizeCimaMedication(item, fetchedAt)));
+
+    if (lists.length === 0) {
+      const reason = settled.find((result) => result.status === 'rejected') as PromiseRejectedResult | undefined;
+      const message = reason?.reason instanceof Error ? reason.reason.message : 'CIMA no disponible.';
+      return jsonResponse(502, { error: `No se pudo consultar CIMA: ${message}` });
     }
 
-    const items = await searchCima(query, limit);
-    return jsonResponse(200, { items });
+    return jsonResponse(200, { items: mergeCimaResults(lists, limit) });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error desconocido';
-    return jsonResponse(502, { error: message });
+    return jsonResponse(502, { error: `No se pudo consultar CIMA: ${message}` });
   }
 });
