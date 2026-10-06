@@ -28,7 +28,7 @@
 | `patient_medications` (`start_date`, `end_date`, `is_active`, dosis/frecuencia/vía/indicación, metadatos de selección) | `medicationsService`, exportación | Mantener. Base para persistencia. |
 | `visit_medication_events` (`added/modified/stopped/confirmed_no_change`, `old_value`/`new_value`) | `medicationsService` | Mantener. Es la traza longitudinal de cambios de tratamiento. |
 | `visit_documents` + bucket Storage `visit-documents` (privado) | `visitDocumentsService` | Mantener. **Escribir DDL y políticas de Storage** (IRIS no las tiene en migraciones). |
-| `visit_process_records` | `visitProcessService` | Mantener provisionalmente (factibilidad/costes); confirmar variables con protocolo. |
+| `visit_process_records` | — (retirado de la app el 2026-10-06, decisión IP) | Sin uso. Tabla vacía conservada; eliminar con una migración nueva si se confirma que no hará falta. |
 | Funciones `app_private.current_profile_role`, `has_any_role`, `can_read_patient`, `can_write_patient`; `set_updated_at`, `set_created_by_to_current_user`, `set_delivered_by_to_current_user` | RLS y triggers | Mantener el patrón (helpers `security definer` con `search_path` fijo). Reescribir `can_*_patient` para el modelo por centro. |
 | RLS `enable` + `force` en todas las tablas | — | Mantener sin excepciones. |
 | Edge Function `search-cima-medications` | `cimaSearchService` | Desplegar en el proyecto DERMAPEX. |

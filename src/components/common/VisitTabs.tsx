@@ -9,7 +9,7 @@ import { getCurrentProfile } from '../../services/profileService';
 import { getVisitById, type Visit } from '../../services/visitService';
 import { CmoLevelBadge } from '../ui/CmoLevelBadge';
 
-type VisitTab = 'clinical' | 'medications' | 'interventions' | 'questionnaires' | 'process' | 'documents' | 'reports';
+type VisitTab = 'clinical' | 'medications' | 'interventions' | 'questionnaires' | 'documents' | 'reports';
 
 type VisitTabsProps = {
   visitId: string;
@@ -21,7 +21,6 @@ const TABS: Array<{ key: VisitTab; label: string; path: string }> = [
   { key: 'medications', label: 'Medicación', path: 'medications' },
   { key: 'interventions', label: 'Intervenciones', path: 'interventions' },
   { key: 'questionnaires', label: 'Cuestionarios', path: 'questionnaires' },
-  { key: 'process', label: 'Proceso', path: 'process' },
   { key: 'documents', label: 'Documentos', path: 'documents' },
   { key: 'reports', label: 'Informes', path: 'reports' },
 ];
