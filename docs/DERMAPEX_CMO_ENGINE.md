@@ -209,3 +209,26 @@ reestratificación. Hoy solo pueden registrarse como «Otra intervención (texto
 | Humo e2e Chromium (`e2e/run-smoke.sh`: PostgreSQL + PostgREST 12 locales, RLS real) | 28/28 comprobaciones OK; capturas en `docs/e2e-screenshots/` |
 
 No se ha ejecutado nada contra ningún proyecto Supabase. Las migraciones están **pendientes de aplicar**.
+
+## 9. Aplicación al proyecto Supabase `dermapex` (2026-10-06)
+
+| Paso | Cómo | Registro en `supabase_migrations.schema_migrations` |
+|---|---|---|
+| `20261006100000_dermapex_study_arm.sql` | Conector Supabase | `dermapex_study_arm` |
+| `20261006100100_dermapex_cmo_model.sql` | Conector Supabase | `dermapex_cmo_model` |
+| `20261006100200_dermapex_cmo_stratification.sql`, columnas de `cmo_scores` | Conector Supabase | `dermapex_cmo_stratification_a_columns` |
+| Mismo fichero, desde «Guardado atómico» (función, RLS, vistas) | SQL Editor, por la IP (el conector agotaba el tiempo) | `dermapex_cmo_stratification_b_function_rls_views` |
+| `20261006100300_dermapex_intervention_catalog.sql` | SQL Editor, por la IP, en la misma transacción | `dermapex_intervention_catalog` |
+
+El SQL es literal del repositorio; solo cambia que `20261006100200` figura en dos entradas. Antes de
+entregarlo se ensayó en PostgreSQL local sobre el mismo estado que tenía producción.
+
+Cohortes asignadas por decisión de la IP («inicialmente»): **HVV** (Hospital de Valme) y **HVI** (Hospital
+Virgen de la Victoria) → `cmo`; **HVN**, **HPM** y **HTC** → `standard`. Se pueden corregir mientras el
+centro no tenga pacientes.
+
+Verificación posterior: función `save_cmo_stratification` presente, 2 vistas, 28 variables, 20 tarjetas,
+sin INSERT directo en `cmo_scores` para `authenticated`, sin acceso `anon` a las vistas, trigger de
+intervenciones activo. El asesor de seguridad de Supabase marca las dos vistas como *security definer
+view* (ERROR) y la función como ejecutable por usuarios autenticados (WARN). Las dos cosas son intencionadas
+(§7) y están cubiertas por `db-tests/20_cmo_stratification.sql`.
