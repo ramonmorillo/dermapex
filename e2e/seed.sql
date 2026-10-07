@@ -13,6 +13,10 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('bbbbbbbb-e2e0-4000-8000-000000000001', 'estandar@e2e.test', '{"full_name":"Farmacéutico centro estándar (ficticio)"}'),
   ('cccccccc-e2e0-4000-8000-000000000001', 'coordinacion@e2e.test', '{"full_name":"Coordinación (ficticia)"}');
 
+-- Autorización explícita a DERMAPEX (migración 20261007130000).
+insert into app_private.app_access (user_id, app_code, is_active)
+select id, 'dermapex', true from auth.users;
+
 update public.profiles set must_change_password = false;
 update public.profiles set role = 'coordinator' where id = 'cccccccc-e2e0-4000-8000-000000000001';
 

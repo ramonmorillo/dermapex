@@ -15,6 +15,15 @@ Leyenda de dependencias: **[P]** protocolo/CRD · **[I]** instrumento validado (
 | GitHub Pages: activar *Source = GitHub Actions*; definir variable `DERMAPEX_BASE_PATH` si hay dominio propio | [T] |
 | Dependencias con avisos de seguridad: actualizar `react-router-dom`/`@remix-run/router` a una versión sin el aviso GHSA-2j2x-hqr9-3h42 (comprobar con `npm audit`), valorar sustituir `xlsx` 0.18.5 (sin parches en npm) por la distribución oficial de SheetJS o alternativa, revisar `ws` vía supabase-js | [T] |
 
+## 0 bis. Convivencia con COAMO en el mismo proyecto Supabase
+
+Diseño: `docs/coamo/SUPABASE_DERMAPEX_COAG_ARCHITECTURE.md` (Codex, 2026-10-07; veredicto GO WITH CONDITIONS) y blueprint funcional `docs/coamo/COAMO_FUNCTIONAL_BLUEPRINT.md`.
+
+- ✅ Fase 1 preparada (migración `20261007130000`, pruebas `db-tests/40_app_access_isolation.sql`): autorización explícita por aplicación (`app_private.app_access`), barrera DERMAPEX en helpers y políticas restrictivas en las 26 tablas, auditoría de cuentas ajenas en registro privado, `mark_password_changed` acotado, `visit_study_arm` fuera de la API, Edge Function CIMA con comprobación de acceso, aviso en la app para cuentas no autorizadas. **Pendiente de aplicar** al proyecto (tras revisión del PR) y de desplegar la Edge Function.
+- Desviación respecto al diseño de Codex (decisión IP): una cuenta puede tener acceso a varias aplicaciones (la coordinación es común); roles independientes por aplicación.
+- **Aviso permanente:** en `public`, los privilegios por defecto conceden todo a `anon` y `authenticated` sobre tablas y funciones nuevas. Cada tabla `coag_*` debe crearse con RLS activada y `revoke` explícitos en la misma migración. Toda tabla nueva de DERMAPEX debe añadirse al inventario de la barrera (lo verifica `db-tests/40_*`).
+- Pendiente fase 2+: tablas `coag_*`, helpers `coag_private`, bucket y auditoría propios, origen web y `storageKey` propios del frontend COAMO. Parte clínica bloqueada por el documento CMO de coagulopatías.
+
 ## 1. Modelo de datos definitivo
 
 - ✅ Hecho (fase 2): migraciones del núcleo en `supabase/migrations/` (centros y pertenencias, RLS por centro con roles investigador/coordinación, pacientes seudonimizados, auditoría ampliada, Storage, `med_catalog_*`) y pruebas automatizadas de RLS (`scripts/test-db.sh`, CI). **Pendiente de aplicar** al proyecto Supabase: ver `DERMAPEX_DATABASE_SETUP.md`.

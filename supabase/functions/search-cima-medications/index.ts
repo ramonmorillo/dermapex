@@ -142,6 +142,28 @@ async function searchCima(query: string, limit: number) {
   return items.slice(0, limit).map((item) => normalizeCimaMedication(item, fetchedAt));
 }
 
+// El proyecto Supabase lo comparten DERMAPEX y COAMO (mismo Auth). verify_jwt solo prueba que la
+// sesión es del proyecto, no que la cuenta esté autorizada en DERMAPEX. Se comprueba con la propia
+// RLS: con el JWT del usuario, una cuenta DERMAPEX ve al menos su perfil; cualquier otra, ninguno
+// (política restrictiva dermapex_app_gate, migración 20261007130000).
+async function hasDermapexAccess(request: Request): Promise<boolean> {
+  const authorization = request.headers.get('Authorization');
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  if (!authorization || !supabaseUrl || !anonKey) {
+    return false;
+  }
+
+  const response = await fetch(`${supabaseUrl}/rest/v1/profiles?select=id&limit=1`, {
+    headers: { apikey: anonKey, Authorization: authorization },
+  });
+  if (!response.ok) {
+    return false;
+  }
+  const rows = (await response.json()) as unknown;
+  return Array.isArray(rows) && rows.length > 0;
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS });
@@ -152,6 +174,10 @@ Deno.serve(async (request) => {
   }
 
   try {
+    if (!(await hasDermapexAccess(request))) {
+      return jsonResponse(403, { error: 'Cuenta no autorizada en DERMAPEX.' });
+    }
+
     const body = (await request.json()) as CimaSearchRequest;
     const query = (body.query ?? '').trim();
     const limit = Math.max(1, Math.min(50, Number(body.limit ?? 20)));

@@ -55,6 +55,10 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('cccccccc-0000-4000-8000-000000000001', 'coord@test', '{}'),
   ('dddddddd-0000-4000-8000-000000000001', 'nocenter@test', '{}');
 
+-- Autorización explícita a DERMAPEX (desde 20261007130000: una cuenta de Auth sin ella no ve nada).
+insert into app_private.app_access (user_id, app_code, is_active)
+select id, 'dermapex', true from auth.users;
+
 select dermapex_test.expect((select count(*) from public.profiles) = 5, 'perfil creado automáticamente para cada usuario de Auth');
 select dermapex_test.expect((select full_name from public.profiles where id = 'aaaaaaaa-0000-4000-8000-000000000001') = 'Investigador A', 'full_name tomado de los metadatos de Auth');
 select dermapex_test.expect((select bool_and(role = 'investigator') from public.profiles), 'rol por defecto = investigator');
