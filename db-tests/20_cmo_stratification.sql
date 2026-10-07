@@ -36,6 +36,9 @@ grant execute on all functions in schema dermapex_test to anon, authenticated;
 insert into auth.users (id, email) values
   ('aaaaaaaa-1000-4000-8000-000000000001', 'm1@cm.test'),
   ('bbbbbbbb-1000-4000-8000-000000000001', 's1@cs.test');
+insert into app_private.app_access (user_id, app_code, is_active) values
+  ('aaaaaaaa-1000-4000-8000-000000000001', 'dermapex', true),
+  ('bbbbbbbb-1000-4000-8000-000000000001', 'dermapex', true);
 
 -- ── Cohorte del centro (study_arm) ──────────────────────────────────────────
 

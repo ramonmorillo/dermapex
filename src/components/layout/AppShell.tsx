@@ -16,6 +16,8 @@ export function AppShell() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  // Cuenta válida del proyecto pero sin autorización en DERMAPEX (p. ej. de otro estudio).
+  const [noAccess, setNoAccess] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -38,6 +40,11 @@ export function AppShell() {
       // Contraseña temporal (cuenta creada por coordinación): debe cambiarse antes de acceder.
       const passwordCheck = await mustChangePassword(session.user.id);
       if (!mounted) return;
+      if (passwordCheck.noAccess) {
+        setNoAccess(true);
+        setCheckingSession(false);
+        return;
+      }
       if (passwordCheck.value) {
         navigate('/set-password?mode=first', { replace: true });
         return;
@@ -81,6 +88,25 @@ export function AppShell() {
       <div className="app-shell">
         <main className="main-content">
           <LoadingState label="Comprobando sesión..." />
+        </main>
+      </div>
+    );
+  }
+
+  if (noAccess) {
+    return (
+      <div className="app-shell">
+        <main className="main-content">
+          <section className="error-state" role="alert">
+            <h2>Cuenta sin acceso a DERMAPEX</h2>
+            <p>
+              Has iniciado sesión correctamente, pero esta cuenta no está autorizada en DERMAPEX. Si participas en el
+              estudio, pide a coordinación que habilite tu acceso.
+            </p>
+            <button type="button" className="button-link" onClick={handleSignOut} disabled={isSigningOut}>
+              {isSigningOut ? 'Saliendo...' : 'Cerrar sesión'}
+            </button>
+          </section>
         </main>
       </div>
     );

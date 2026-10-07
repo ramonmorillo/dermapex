@@ -72,6 +72,14 @@ En el plan gratuito de Supabase **no se pueden editar las plantillas de correo**
 
 Al crearse el usuario se genera su perfil con rol `investigator`, **sin centro** y con `must_change_password = true`.
 
+**Desde la migración `20261007130000` (proyecto compartido con COAMO) hace falta un paso más: autorizar la cuenta en DERMAPEX.** El proyecto Supabase lo comparten DERMAPEX y COAMO con un único Auth: crear la cuenta solo da identidad, no acceso. Sin este paso la persona inicia sesión pero ve el aviso «Cuenta sin acceso a DERMAPEX» y la base de datos no le devuelve nada:
+
+```sql
+select app_private.set_app_access('<email>', 'dermapex');
+```
+
+Para COAMO se usará el mismo comando con `'coag'`. Una misma cuenta puede tener ambos accesos (caso de la coordinación de los dos estudios); los roles son independientes en cada aplicación. **No asignes `'dermapex'` a cuentas de COAMO.**
+
 Si alguien olvida su contraseña: coordinación le asigna otra temporal desde el panel y ejecuta
 `update public.profiles set must_change_password = true where id = (select id from auth.users where email = '<email>');`
 
@@ -103,15 +111,20 @@ select u.id, c.id
  where u.email = '<email-investigador>' and c.code = '<COD1>';
 
 -- 4.4 Comprobación
-select u.email, p.role, p.is_active, c.code, c.study_arm, c.study_number
+select u.email, a.is_active as acceso_dermapex, p.role, p.is_active, c.code, c.study_arm, c.study_number
   from public.profiles p
   join auth.users u on u.id = p.id
+  left join app_private.app_access a on a.user_id = p.id and a.app_code = 'dermapex'
   left join public.center_memberships m on m.profile_id = p.id
   left join public.centers c on c.id = m.center_id
  order by u.email;
 ```
 
-Para retirar el acceso a una persona sin perder la trazabilidad: `update public.profiles set is_active = false where id = ...;`
+Para retirar el acceso a DERMAPEX sin perder la trazabilidad (no borres la cuenta de Auth: es común a ambos estudios):
+`select app_private.set_app_access('<email>', 'dermapex', false);`
+Para desactivar solo el perfil DERMAPEX: `update public.profiles set is_active = false where id = ...;`
+
+Las altas y bajas de acceso quedan en `app_private.admin_log` (registro administrativo privado, solo SQL Editor).
 
 ## 5. Búsqueda de medicamentos CIMA (Edge Function)
 

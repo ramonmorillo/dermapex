@@ -100,15 +100,22 @@ export async function verifyEmailLinkToken(tokenHash: string, type: EmailOtpType
   return { user: data.user, session: data.session, error };
 }
 
-/** Indica si la cuenta tiene contraseña temporal pendiente de cambiar (ante cualquier duda: true). */
-export async function mustChangePassword(userId: string): Promise<{ value: boolean; error: Error | null }> {
+/**
+ * Indica si la cuenta tiene contraseña temporal pendiente de cambiar (ante cualquier duda: true) y si
+ * está autorizada en DERMAPEX. El proyecto Supabase lo comparten varias aplicaciones con el mismo
+ * Auth: una cuenta sin acceso DERMAPEX inicia sesión, pero la RLS no le devuelve ni su propio perfil.
+ */
+export async function mustChangePassword(
+  userId: string,
+): Promise<{ value: boolean; noAccess: boolean; error: Error | null }> {
   if (!supabase) {
-    return { value: false, error: new Error('Supabase no está configurado en variables de entorno.') };
+    return { value: false, noAccess: false, error: new Error('Supabase no está configurado en variables de entorno.') };
   }
 
   const { data, error } = await supabase.from('profiles').select('must_change_password').eq('id', userId).maybeSingle();
-  if (error) return { value: true, error };
-  return { value: data?.must_change_password !== false, error: null };
+  if (error) return { value: true, noAccess: false, error };
+  if (!data) return { value: false, noAccess: true, error: null };
+  return { value: data.must_change_password !== false, noAccess: false, error: null };
 }
 
 /** Marca que la persona ya ha fijado su propia contraseña. */
