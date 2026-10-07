@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 
 import { ErrorState } from '../components/common/ErrorState';
 import { VisitTabs } from '../components/common/VisitTabs';
+import { UsualCareInterventionsPanel } from '../components/interventions/UsualCareInterventionsPanel';
 import { CmoLevelBadge } from '../components/ui/CmoLevelBadge';
 import { LoadingState } from '../components/ui/LoadingState';
 import { Notice } from '../components/ui/Notice';
@@ -92,8 +93,8 @@ const EMPTY_FORM: FormState = {
 };
 
 /**
- * Intervenciones CMO de la visita. Solo en centros de la cohorte CMO (D5; la base de datos rechaza
- * el registro en centros estándar). El catálogo se lee de intervention_catalog (versión
+ * Intervenciones de la visita. Centros CMO: catálogo CMO (D5). Centros estándar: listado neutro de
+ * actividades por desplegable (UsualCareInterventionsPanel; decisión IP 2026-10-07). El catálogo se lee de intervention_catalog (versión
  * INTERVENTION_CATALOG_VERSION, D7) y se filtra por los niveles recomendados del nivel vigente (D8),
  * con opción «ver todas». Junto al catálogo se muestra el paquete mínimo del protocolo del nivel.
  */
@@ -251,17 +252,32 @@ export function VisitInterventionsPage() {
   const isOtherIntervention = form.catalog_choice === OTHER_INTERVENTION_CODE;
   const selectedCatalogItem = isOtherIntervention ? null : catalogById.get(form.catalog_choice) ?? null;
 
+  if (arm === 'standard') {
+    return (
+      <div className="page-stack">
+        <section className="card">
+          <h1>Registro de intervenciones</h1>
+          <VisitTabs visitId={visitId} active="interventions" />
+          <Notice tone="info" title={STUDY_ARM_LABEL.standard}>
+            <p>Registre lo que ha hecho en esta visita seleccionándolo del listado. En los centros de atención farmacéutica estándar no se estratifica.</p>
+          </Notice>
+        </section>
+        <UsualCareInterventionsPanel visitId={visitId} />
+        <div className="actions-inline section-footer-actions">
+          {visitPatientId ? <Link to={`/patients/${visitPatientId}`}>Volver a paciente</Link> : null}
+        </div>
+      </div>
+    );
+  }
+
   if (arm !== 'cmo') {
     return (
       <div className="page-stack">
         <section className="card">
           <h1>Registro de intervenciones</h1>
           <VisitTabs visitId={visitId} active="interventions" />
-          <Notice tone="info" title={arm === 'standard' ? STUDY_ARM_LABEL.standard : 'Centro sin cohorte asignada'}>
-            <p>
-              El registro de intervenciones CMO y su catálogo solo están disponibles en los centros de la cohorte de atención farmacéutica
-              CMO-MAPEX.
-            </p>
+          <Notice tone="danger" title="Centro sin cohorte asignada">
+            <p>El centro de este paciente no tiene asignada la cohorte del estudio. Coordinación debe asignarla antes de registrar intervenciones.</p>
           </Notice>
           {errorMessage ? <ErrorState title="No se pudo cargar la visita" message={errorMessage} /> : null}
           <div className="actions-inline section-footer-actions">

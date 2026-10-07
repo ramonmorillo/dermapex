@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, Navigate } from 'react-router-dom';
 
 import { ErrorState } from '../components/common/ErrorState';
 import { VisitTabs } from '../components/common/VisitTabs';
@@ -22,7 +22,6 @@ import {
   DERMAPEX_DECISIONS,
   RECENT_MEDICATION_PROTOCOL_DISCREPANCY,
   STRATIFICATION_REASONS,
-  STUDY_ARM_LABEL,
   getStratificationReasonLabel,
   type StratificationReason,
 } from '../constants/dermapexStudyConfig';
@@ -127,7 +126,6 @@ export function VisitStratificationPage() {
   }, [visitId]);
 
   const arm = patient?.center?.study_arm ?? null;
-  const isCoordinator = profile?.role === 'coordinator';
   const showResults = canViewCmoResults(arm, profile?.role);
   const age = patient?.age_at_inclusion ?? null;
   const ageGroup = ageToGroup(age);
@@ -161,6 +159,9 @@ export function VisitStratificationPage() {
   };
 
   if (loading) return <LoadingState label="Cargando estratificación..." />;
+
+  // Decisión IP 2026-10-07: los centros de atención farmacéutica estándar no estratifican.
+  if (arm === 'standard') return <Navigate to={`/visits/${visitId}/interventions`} replace />;
 
   const renderField = (field: CmoAnswerFieldDefinition) => {
     const name = `cmo-${field.code}`;
@@ -216,17 +217,6 @@ export function VisitStratificationPage() {
           </Notice>
         ) : null}
 
-        {arm === 'standard' && !showResults ? (
-          <Notice tone="info" title={STUDY_ARM_LABEL.standard}>
-            <p>Registre las variables del modelo en esta visita. La puntuación se calcula y se guarda para el análisis del estudio, pero no se muestra en los centros de atención farmacéutica estándar.</p>
-          </Notice>
-        ) : null}
-
-        {arm === 'standard' && isCoordinator ? (
-          <Notice tone="warning" title="Centro de la cohorte estándar">
-            <p>Como coordinación ve los resultados CMO de este paciente. El centro no los ve.</p>
-          </Notice>
-        ) : null}
 
         <p className="help-text">
           Modelo {CMO_MODEL_VERSION} · motor {CMO_ENGINE_VERSION}. Decisiones de implementación D1-D8: {DERMAPEX_DECISIONS.D1.status}.

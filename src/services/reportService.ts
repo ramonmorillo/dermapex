@@ -103,7 +103,9 @@ function formatInterventionItem(item: Intervention): string {
 function deriveSimpleSummary(visit: Visit, cmoSentence: string | null, interventions: Intervention[], questionnaires: QuestionnaireResponseRecord[]): string {
   const chunks: string[] = [];
   if (cmoSentence) chunks.push(cmoSentence);
-  if (interventions.length > 0) chunks.push(`En esta visita se registraron ${interventions.length} intervenciones farmacéuticas`);
+  const realInterventions = interventions.filter((item) => item.usual_care_code !== 'sin-intervencion');
+  if (realInterventions.length > 0) chunks.push(`En esta visita se registraron ${realInterventions.length} intervenciones farmacéuticas`);
+  else if (interventions.length > 0) chunks.push('En esta visita no se realizó ninguna intervención farmacéutica');
   if (questionnaires.length > 0) chunks.push(`También se completaron ${questionnaires.length} cuestionarios de seguimiento`);
   if (visit.notes?.trim()) chunks.push(`Comentario del equipo clínico: ${visit.notes.trim()}`);
   return chunks.length > 0 ? `${chunks.join('. ')}.` : 'En esta visita no se registró información suficiente para ampliar el resumen.';
