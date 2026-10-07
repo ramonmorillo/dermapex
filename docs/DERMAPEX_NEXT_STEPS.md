@@ -22,7 +22,9 @@ Diseño: `docs/coamo/SUPABASE_DERMAPEX_COAG_ARCHITECTURE.md` (Codex, 2026-10-07;
 - ✅ Fase 1 preparada (migración `20261007130000`, pruebas `db-tests/40_app_access_isolation.sql`): autorización explícita por aplicación (`app_private.app_access`), barrera DERMAPEX en helpers y políticas restrictivas en las 26 tablas, auditoría de cuentas ajenas en registro privado, `mark_password_changed` acotado, `visit_study_arm` fuera de la API, Edge Function CIMA con comprobación de acceso, aviso en la app para cuentas no autorizadas. **Pendiente de aplicar** al proyecto (tras revisión del PR) y de desplegar la Edge Function.
 - Desviación respecto al diseño de Codex (decisión IP): una cuenta puede tener acceso a varias aplicaciones (la coordinación es común); roles independientes por aplicación.
 - **Aviso permanente:** en `public`, los privilegios por defecto conceden todo a `anon` y `authenticated` sobre tablas y funciones nuevas. Cada tabla `coag_*` debe crearse con RLS activada y `revoke` explícitos en la misma migración. Toda tabla nueva de DERMAPEX debe añadirse al inventario de la barrera (lo verifica `db-tests/40_*`).
-- Pendiente fase 2+: tablas `coag_*`, helpers `coag_private`, bucket y auditoría propios, origen web y `storageKey` propios del frontend COAMO. Parte clínica bloqueada por el documento CMO de coagulopatías.
+- ✅ Fase 1 aplicada en Supabase el 2026-10-07 (PR #14) y Edge Function CIMA desplegada con la barrera (PR #15).
+- ✅ Fase 2 preparada (migraciones `20261007150000`/`150100`, pruebas `db-tests/50_coag_foundation.sql`): `coag_profiles`, `coag_centers` (7 reclutadores + Valme consultor; nombres y números provisionales), `coag_center_memberships`, `coag_audit_log`, helpers `coag_private`, alta administrativa `coag_private.provision_user` / `assign_center`. Frontend en el repositorio `ramonmorillo/COAMO`.
+- Pendiente fase 3: pacientes, visitas, contactos, CRD, cuestionarios, documentos (bucket `coag-visit-documents`) y CMO, según el blueprint. Bloqueado por el documento CMO de coagulopatías y las decisiones C01–C20.
 
 ## 1. Modelo de datos definitivo
 
