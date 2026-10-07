@@ -78,7 +78,13 @@ Al crearse el usuario se genera su perfil con rol `investigator`, **sin centro**
 select app_private.set_app_access('<email>', 'dermapex');
 ```
 
-Para COAMO se usará el mismo comando con `'coag'`. Una misma cuenta puede tener ambos accesos (caso de la coordinación de los dos estudios); los roles son independientes en cada aplicación. **No asignes `'dermapex'` a cuentas de COAMO.**
+Para COAMO **no** se usa este comando, sino el alta propia de COAMO (crea acceso y perfil COAMO a la vez):
+
+```sql
+select coag_private.provision_user('<email>', 'investigator');      -- o 'coordinator'
+select coag_private.assign_center('<email>', '<CÓDIGO_CENTRO_COAMO>'); -- p. ej. 'LAFE'
+```
+ Una misma cuenta puede tener ambos accesos (caso de la coordinación de los dos estudios); los roles son independientes en cada aplicación. **No asignes `'dermapex'` a cuentas de COAMO.**
 
 Si alguien olvida su contraseña: coordinación le asigna otra temporal desde el panel y ejecuta
 `update public.profiles set must_change_password = true where id = (select id from auth.users where email = '<email>');`
