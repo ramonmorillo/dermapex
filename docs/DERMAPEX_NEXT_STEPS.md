@@ -39,8 +39,11 @@ Leyenda de dependencias: **[P]** protocolo/CRD · **[I]** instrumento validado (
 
 ## 4. IEXPAC
 
-- Ya existe implementación heredada (11 ítems Likert 1-5 → `10·(Σ−11)/44`; ítem 12 aparte). **Verificar** contra la versión y manual que cite el protocolo (ítems, sentido, tratamiento de ausentes, ítem 12). [I]
+- ✅ Hecho (2026-10-07): ítems sustituidos por el texto literal de IEXPAC ©2015 castellano (15 ítems; 1-11 obligatorios, 12-15 condicionados con opción «No aplica»). Batería habilitada en `questionnaire_measurement_map` (migración `20261007080000`, aplicada): IEXPAC, MORISKY_GREEN, EQ5D_5L, PAM10.
+- Puntuación provisional: global = `10·(Σ ítems 1-11 − 11)/44`; ítems 12-15 se guardan en bruto y no puntúan (`secondary_score` = ítem 12). **Verificar contra el manual oficial** (regla de puntuación, ausentes, uso de 12-15). [I]
+- Pendiente: confirmar permiso de uso del texto del instrumento en la herramienta. [I]
 - Confirmar momentos de administración. [P]
+- Morisky-Green, EQ-5D-5L y PAM-10 habilitados por decisión del IP; siguen pendientes versión y licencia (R1). [I]
 
 ## 5. POEM
 
