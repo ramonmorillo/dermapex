@@ -99,7 +99,7 @@ type QuestionnaireRow = {
   visit_id: string;
   patient_id: string | null;
   visit_type: string;
-  questionnaire_type: 'iexpac' | 'morisky' | 'eq5d' | 'pam10' | 'dlqi';
+  questionnaire_type: 'iexpac' | 'morisky' | 'eq5d' | 'pam10' | 'dlqi' | 'evasaf';
   responses: Record<string, unknown>;
   total_score: number | null;
   secondary_score: number | null;
@@ -532,6 +532,8 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     const finalEq5d = finalVisitId ? questionnaireByVisitAndType.get(finalVisitId)?.get('eq5d') : null;
     const dlqiBasal = (baselineVisitId ? questionnaireByVisitAndType.get(baselineVisitId)?.get('dlqi')?.total_score : null) ?? null;
     const dlqiFinal = (finalVisitId ? questionnaireByVisitAndType.get(finalVisitId)?.get('dlqi')?.total_score : null) ?? null;
+    const evasafBasal = (baselineVisitId ? questionnaireByVisitAndType.get(baselineVisitId)?.get('evasaf')?.total_score : null) ?? null;
+    const evasafFinal = (finalVisitId ? questionnaireByVisitAndType.get(finalVisitId)?.get('evasaf')?.total_score : null) ?? null;
 
     const iexpacBasal = baselineIexpac?.total_score ?? null;
     const iexpacFinal = finalIexpac?.total_score ?? null;
@@ -559,6 +561,9 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
       DLQI_final: dlqiFinal,
       DLQI_banda_final: dlqiBand(dlqiFinal) ?? '',
       delta_DLQI: dlqiBasal !== null && dlqiFinal !== null ? dlqiFinal - dlqiBasal : null,
+      EVASAF_basal: evasafBasal,
+      EVASAF_final: evasafFinal,
+      delta_EVASAF: evasafBasal !== null && evasafFinal !== null ? Number((evasafFinal - evasafBasal).toFixed(2)) : null,
     };
   });
 
@@ -584,6 +589,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
       Morisky: q?.get('morisky')?.total_score ?? null,
       EQ5D_vas: q?.get('eq5d')?.secondary_score ?? null,
       DLQI: q?.get('dlqi')?.total_score ?? null,
+      EVASAF: q?.get('evasaf')?.total_score ?? null,
     };
   });
 
@@ -636,6 +642,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
       nivel_cmo: score?.priority ?? null,
       IEXPAC: qByType?.get('iexpac')?.total_score ?? null,
       DLQI: qByType?.get('dlqi')?.total_score ?? null,
+      EVASAF: qByType?.get('evasaf')?.total_score ?? null,
       Morisky: qByType?.get('morisky')?.total_score ?? null,
       EQ5D_vas: qByType?.get('eq5d')?.secondary_score ?? null,
       EQ5D_profile: String(qByType?.get('eq5d')?.responses?.profile ?? ''),
@@ -771,6 +778,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     score_cmo: 'Puntuacion CMO total',
     nivel_cmo: 'Nivel CMO (prioridad)',
     IEXPAC: 'Puntuacion IEXPAC 0-10 (experiencia del paciente cronico, items 1-11)',
+    EVASAF: 'EVASAF media de los 10 items 1-5 (resumen provisional; items en bruto en cuestionarios.csv)',
     DLQI: 'DLQI 0-30 (impacto de la enfermedad cutanea en la calidad de vida; vacio = no puntuable o no recogido)',
     Morisky: 'Puntuacion Morisky (adherencia)',
     EQ5D_vas: 'EQ5D VAS (calidad de vida)',

@@ -110,7 +110,7 @@ interface SpssTypeInfo {
 function inferSpssType(header: string, values: (string | number)[]): SpssTypeInfo {
   // Explicitly numeric column name patterns
   const numericPattern =
-    /^(score_|nivel_|IEXPAC|DLQI(_basal|_final)?$|Morisky|EQ5D_vas|edad|visit_number|n_|weight_|height_|bmi|waist_|ldl_|hdl_|non_hdl_|fasting_|hba1c_|score2_|framingham_|diet_|adverse_|chronic_|delta_|polypharmacy$|active_medications_count$|linked_to_cmo_level$|systolic_|diastolic_|heart_rate$|is_active$|high_risk_medication_present$|n_intervenciones$|cmo_|inf_|motivo_estratificacion$|regla_especial$|incompleta$)/;
+    /^(score_|nivel_|IEXPAC|DLQI(_basal|_final)?$|EVASAF|Morisky|EQ5D_vas|edad|visit_number|n_|weight_|height_|bmi|waist_|ldl_|hdl_|non_hdl_|fasting_|hba1c_|score2_|framingham_|diet_|adverse_|chronic_|delta_|polypharmacy$|active_medications_count$|linked_to_cmo_level$|systolic_|diastolic_|heart_rate$|is_active$|high_risk_medication_present$|n_intervenciones$|cmo_|inf_|motivo_estratificacion$|regla_especial$|incompleta$)/;
 
   if (numericPattern.test(header)) {
     const hasDecimals = values.some((v) => {
