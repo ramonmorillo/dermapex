@@ -19,7 +19,7 @@ const PAM10_ITEM_KEYS = Array.from({ length: 10 }, (_, idx) => `q${idx + 1}` as 
 
 type LikertValue = 1 | 2 | 3 | 4 | 5;
 
-type IexpacForm = Record<(typeof IEXPAC_ITEM_KEYS)[number], '' | `${LikertValue}`> & { q12: '' | `${LikertValue}` };
+type IexpacForm = Record<(typeof IEXPAC_ITEM_KEYS)[number] | 'q12' | 'q13' | 'q14' | 'q15', '' | `${LikertValue}`>;
 type MoriskyForm = { q1: '' | 'yes' | 'no'; q2: '' | 'yes' | 'no'; q3: '' | 'yes' | 'no'; q4: '' | 'yes' | 'no' };
 type Eq5dForm = Record<(typeof EQ5D_DIMENSIONS)[number], '' | `${LikertValue}`> & { vas: '' | string };
 type Pam10Form = Record<(typeof PAM10_ITEM_KEYS)[number], '' | `${LikertValue}`>;
@@ -32,19 +32,30 @@ const LIKERT_LABELS: Array<{ value: LikertValue; label: string }> = [
   { value: 5, label: 'Siempre' },
 ];
 
+// IEXPAC ©2015 (versión castellano, 15 ítems). Texto literal del cuestionario oficial (www.iexpac.org).
+// Ítems 1-11: generales, obligatorios. Ítems 12-15: condicionados (solo si aplica en los últimos 6 meses).
 const IEXPAC_QUESTIONS = [
-  'Me ayudan a cumplir el plan de tratamiento.',
-  'Resuelven mis dudas cuando lo necesito.',
-  'Tengo información clara para manejar mi problema de salud.',
-  'Siento que coordinan bien mi atención entre profesionales.',
-  'Me animan a participar en decisiones sobre mi salud.',
-  'Revisan conmigo cómo va el tratamiento en cada visita.',
-  'Me explican de forma comprensible los cambios de medicación.',
-  'Recibo apoyo para mejorar hábitos de salud.',
-  'Me siento acompañado/a en el seguimiento de mi enfermedad.',
-  'Puedo contactar con el equipo cuando aparece una incidencia.',
-  'Percibo continuidad y organización en mi atención.',
+  { title: 'Respetan mi estilo de vida', text: 'Los profesionales que me atienden me escuchan y tienen en cuenta mis necesidades, costumbres y preferencias para adaptar mi plan de cuidados y tratamiento.' },
+  { title: 'Están coordinados para ofrecerme una buena atención', text: 'Los profesionales que me atienden en el centro de salud y los que me atienden en el hospital hablan entre ellos y se coordinan para mejorar mi bienestar y mi calidad de vida.' },
+  { title: 'Me ayudan a informarme por Internet', text: 'Los profesionales que me atienden me informan sobre páginas web y foros de internet de los que me puedo fiar para conocer mejor mi enfermedad, su tratamiento y las consecuencias que pueden tener en mi vida.' },
+  { title: 'Ahora sé cuidarme mejor', text: 'Con el apoyo de mis profesionales siento que ha mejorado mi confianza y mi capacidad para cuidar de mí mismo/a, manejar mejor mis problemas de salud y mantener mi autonomía.' },
+  { title: 'Me preguntan y me ayudan a seguir mi plan de tratamiento', text: 'Reviso con los profesionales que me atienden el cumplimiento de mi plan de cuidados y tratamiento y, si tengo dudas, me las aclaran.' },
+  { title: 'Acordamos objetivos para llevar una vida sana y controlar mejor mi enfermedad', text: 'He podido acordar con los profesionales que me atienden objetivos concretos sobre alimentación, ejercicio físico y cómo tomar adecuadamente la medicación para controlar mejor mi enfermedad.' },
+  { title: 'Uso internet y el móvil para consultar mi historia clínica', text: 'Uso Internet y el móvil para consultar mi historia clínica, resultados de mis pruebas, citas programadas y acceder a otros servicios en la web de mi Servicio de salud.' },
+  { title: 'Se aseguran de que tomo la medicación correctamente', text: 'Los profesionales que me atienden revisan conmigo todos los medicamentos que tomo, cómo los tomo, cómo me sientan y puedo consultarles las dudas que tenga.' },
+  { title: 'Se preocupan por mi bienestar', text: 'Los profesionales que me atienden se preocupan por mi calidad de vida y los veo comprometidos para que mejore mi bienestar.' },
+  { title: 'Me informan de recursos sanitarios y sociales que me pueden ayudar', text: 'Los profesionales que me atienden me informan sobre los recursos sanitarios y sociales de que dispongo (en mi barrio, ciudad o pueblo) y que puedo utilizar para mejorar mis problemas de salud y para cuidarme mejor.' },
+  { title: 'Me animan a hablar con otros pacientes', text: 'Los profesionales que me atienden me animan a participar en grupos de pacientes para compartir información y experiencias sobre cómo cuidarnos y mejorar nuestra salud.' },
 ] as const;
+
+const IEXPAC_CONDITIONAL_KEYS = ['q12', 'q13', 'q14', 'q15'] as const;
+
+const IEXPAC_CONDITIONAL_QUESTIONS: Record<(typeof IEXPAC_CONDITIONAL_KEYS)[number], { title: string; condition: string; text: string }> = {
+  q12: { title: 'Se preocupan por mí al llegar a casa tras estar en el hospital', condition: 'Solo si ha estado ingresado en el hospital en los últimos 6 meses.', text: 'Después de recibir el alta del hospital, me han llamado o visitado en casa para ver cómo me encontraba y qué cuidados necesitaba.' },
+  q13: { title: 'Me orientan para no tener una nueva urgencia', condition: 'Solo si ha recibido atención en urgencias en los últimos 6 meses.', text: 'Después de haber estado en urgencias, los profesionales que me atienden saben lo que me ha pasado y me orientan para evitar una nueva urgencia.' },
+  q14: { title: 'Me atienden bien en mi domicilio', condition: 'Solo si ha recibido atención sanitaria en su domicilio en los últimos 6 meses.', text: 'Los profesionales que me atienden en mi casa tratan de solucionar mis problemas de salud de forma coordinada con los profesionales del centro de salud y del hospital.' },
+  q15: { title: 'Los servicios sociales están coordinados con los servicios sanitarios para ofrecerme una buena atención', condition: 'Solo si ha recibido atención de los servicios sociales en los últimos 6 meses.', text: 'Los profesionales que me atienden en los servicios sociales hablan y se coordinan con los profesionales sanitarios para ofrecerme una buena atención.' },
+};
 
 const PAM10_QUESTIONS = [
   'Al final, yo soy la persona responsable de ocuparme de mi salud.',
@@ -78,15 +89,15 @@ function calculateIexpac(form: IexpacForm): { totalScore: number; secondaryScore
   }
 
   const globalScore = Number((10 * (sum - 11) / 44).toFixed(2));
-  const q12 = parseLikert(form.q12);
-
-  if (q12 !== null) {
-    responses.q12 = q12;
+  // Ítems 12-15 condicionados: se registran en bruto solo si aplican; no entran en la puntuación global.
+  for (const key of IEXPAC_CONDITIONAL_KEYS) {
+    const value = parseLikert(form[key]);
+    if (value !== null) responses[key] = value;
   }
 
   return {
     totalScore: globalScore,
-    secondaryScore: q12,
+    secondaryScore: parseLikert(form.q12),
     responses,
   };
 }
@@ -156,20 +167,15 @@ function calculatePam10(form: Pam10Form): { totalScore: number; responses: Recor
 function hydrateIexpac(record: QuestionnaireResponseRecord | undefined): IexpacForm {
   const r = record?.responses ?? {};
   const out: IexpacForm = {
-    q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '', q9: '', q10: '', q11: '', q12: '',
+    q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '', q9: '', q10: '', q11: '', q12: '', q13: '', q14: '', q15: '',
   };
 
-  IEXPAC_ITEM_KEYS.forEach((key) => {
+  [...IEXPAC_ITEM_KEYS, ...IEXPAC_CONDITIONAL_KEYS].forEach((key) => {
     const v = r[key];
     if (v === 1 || v === 2 || v === 3 || v === 4 || v === 5) {
       out[key] = String(v) as `${LikertValue}`;
     }
   });
-
-  const q12 = r.q12;
-  if (q12 === 1 || q12 === 2 || q12 === 3 || q12 === 4 || q12 === 5) {
-    out.q12 = String(q12) as `${LikertValue}`;
-  }
 
   return out;
 }
@@ -226,7 +232,7 @@ export function VisitQuestionnairesPage() {
   const { visitId = '' } = useParams();
   const [visitPatientId, setVisitPatientId] = useState('');
   const [visitType, setVisitType] = useState<string | null>(null);
-  const [iexpacForm, setIexpacForm] = useState<IexpacForm>({ q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '', q9: '', q10: '', q11: '', q12: '' });
+  const [iexpacForm, setIexpacForm] = useState<IexpacForm>({ q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '', q9: '', q10: '', q11: '', q12: '', q13: '', q14: '', q15: '' });
   const [moriskyForm, setMoriskyForm] = useState<MoriskyForm>({ q1: '', q2: '', q3: '', q4: '' });
   const [eq5dForm, setEq5dForm] = useState<Eq5dForm>({ mobility: '', selfcare: '', activities: '', pain: '', anxiety: '', vas: '' });
   const [pam10Form, setPam10Form] = useState<Pam10Form>({ q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '', q9: '', q10: '' });
@@ -368,13 +374,17 @@ export function VisitQuestionnairesPage() {
         <form className="form-grid" onSubmit={handleSave}>
           <article className="questionnaire-card">
             <h2>IEXPAC</h2>
-            <p className="help-text">11 ítems obligatorios + 12 opcional. Escala 1–5.</p>
+            <p className="help-text">
+              Referido a los últimos 6 meses y al conjunto de profesionales que atienden al paciente. Ítems 1-11
+              obligatorios; ítems 12-15 solo si aplican (si no, marcar «No aplica»).
+            </p>
             <div className="questionnaire-grid">
               {IEXPAC_QUESTIONS.map((question, index) => {
                 const key = `q${index + 1}` as (typeof IEXPAC_ITEM_KEYS)[number];
                 return (
                   <fieldset key={key} className="questionnaire-item">
-                    <legend>{index + 1}. {question}</legend>
+                    <legend>{index + 1}. {question.title}</legend>
+                    <p className="help-text">{question.text}</p>
                     <div className="radio-row">
                       {LIKERT_LABELS.map((item) => (
                         <label key={item.value} className="radio-inline">
@@ -394,38 +404,45 @@ export function VisitQuestionnairesPage() {
                 );
               })}
 
-              <fieldset className="questionnaire-item">
-                <legend>12. Tras alta hospitalaria, ¿hubo continuidad asistencial? (opcional)</legend>
-                <div className="radio-row">
-                  <label className="radio-inline">
-                    <input
-                      type="radio"
-                      name="iexpac-q12-empty"
-                      checked={iexpacForm.q12 === ''}
-                      onChange={() => setIexpacForm((prev) => ({ ...prev, q12: '' }))}
-                      disabled={!questionnaireEnabled}
-                    />
-                    Sin respuesta
-                  </label>
-                  {LIKERT_LABELS.map((item) => (
-                    <label key={item.value} className="radio-inline">
-                      <input
-                        type="radio"
-                        name="iexpac-q12"
-                        value={item.value}
-                        checked={iexpacForm.q12 === String(item.value)}
-                        onChange={(e) => setIexpacForm((prev) => ({ ...prev, q12: e.target.value as `${LikertValue}` }))}
-                        disabled={!questionnaireEnabled}
-                      />
-                      {item.value} · {item.label}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
+              {IEXPAC_CONDITIONAL_KEYS.map((key) => {
+                const question = IEXPAC_CONDITIONAL_QUESTIONS[key];
+                return (
+                  <fieldset key={key} className="questionnaire-item">
+                    <legend>{key.slice(1)}. {question.title}</legend>
+                    <p className="help-text"><em>{question.condition}</em> {question.text}</p>
+                    <div className="radio-row">
+                      <label className="radio-inline">
+                        <input
+                          type="radio"
+                          name={`iexpac-${key}`}
+                          value=""
+                          checked={iexpacForm[key] === ''}
+                          onChange={() => setIexpacForm((prev) => ({ ...prev, [key]: '' }))}
+                          disabled={!questionnaireEnabled}
+                        />
+                        No aplica
+                      </label>
+                      {LIKERT_LABELS.map((item) => (
+                        <label key={item.value} className="radio-inline">
+                          <input
+                            type="radio"
+                            name={`iexpac-${key}`}
+                            value={item.value}
+                            checked={iexpacForm[key] === String(item.value)}
+                            onChange={(e) => setIexpacForm((prev) => ({ ...prev, [key]: e.target.value as `${LikertValue}` }))}
+                            disabled={!questionnaireEnabled}
+                          />
+                          {item.value} · {item.label}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                );
+              })}
             </div>
 
             <p className="questionnaire-result">
-              Score global IEXPAC: <strong>{iexpacMetrics ? iexpacMetrics.totalScore.toFixed(2) : '-'}</strong> / 10
+              Puntuación global IEXPAC (ítems 1-11): <strong>{iexpacMetrics ? iexpacMetrics.totalScore.toFixed(2) : '-'}</strong> / 10
             </p>
           </article>
 

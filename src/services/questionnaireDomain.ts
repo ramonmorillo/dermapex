@@ -150,7 +150,7 @@ export function formatQuestionnaireResult(result: QuestionnaireResult): string {
     const q12 =
       result.secondary_score === null
         ? ""
-        : ` · ítem adicional: ${result.secondary_score}/5`;
+        : ` · ítem 12 (tras alta hospitalaria): ${result.secondary_score}/5`;
     return `IEXPAC (experiencia de atención) · puntuación global: ${total}${q12}`;
   }
 

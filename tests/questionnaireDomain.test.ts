@@ -89,6 +89,19 @@ describe("questionnaire report integrity", () => {
     expect(checked.errorMessage).toMatch(/más de una respuesta/);
   });
 
+  test("IEXPAC: conditional items 12-15 never change the global score", () => {
+    const core = Object.fromEntries(
+      Array.from({ length: 11 }, (_, index) => [`q${index + 1}`, 5]),
+    );
+    expect(deriveQuestionnaireScores("iexpac", core)).toEqual({ totalScore: 10, secondaryScore: null });
+    expect(
+      deriveQuestionnaireScores("iexpac", { ...core, q12: 1, q13: 1, q14: 1, q15: 1 }),
+    ).toEqual({ totalScore: 10, secondaryScore: 1 });
+    expect(
+      deriveQuestionnaireScores("iexpac", { ...core, q11: undefined }).totalScore,
+    ).toBeNull();
+  });
+
   test("calculates and labels every questionnaire with its correct scale", () => {
     const iexpacResponses = Object.fromEntries(
       Array.from({ length: 11 }, (_, index) => [`q${index + 1}`, 3]),
