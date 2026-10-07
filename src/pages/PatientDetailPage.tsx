@@ -35,7 +35,7 @@ import { getQuestionnairesByPatient, isQuestionnaireVisitType, type Questionnair
 import { listVisitsByPatient, updateVisit, type Visit } from '../services/visitService';
 import { getFollowupStatus } from '../utils/followupStatus';
 
-const REQUIRED_QUESTIONNAIRES = ['iexpac', 'dlqi', 'morisky', 'eq5d'] as const;
+const REQUIRED_QUESTIONNAIRES = ['iexpac', 'dlqi', 'evasaf', 'morisky', 'eq5d'] as const;
 
 const PRIORITY_LEVEL_LABEL: Record<PriorityLevel, string> = {
   high: 'Prioridad alta',

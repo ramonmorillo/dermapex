@@ -67,7 +67,9 @@ Leyenda de dependencias: **[P]** protocolo/CRD · **[I]** instrumento validado (
 
 ## 8. EVASAF
 
-- No implementado. Falta: confirmar el instrumento exacto al que se refiere el protocolo, su versión, ítems y algoritmo de puntuación. **No se ha podido identificar a partir de la información disponible en este repositorio**; requiere el documento fuente. [I]/[P]
+- ✅ Hecho (2026-10-07): EVASAF (Monje-Agudo et al., Farm Hosp 2015;39(3):152-6), 10 ítems Likert 1-5, en visitas basal y mes 12 para ambas cohortes. Migración `20261007100000`.
+- **Validar (IP):** el artículo no define puntuación total; resumen provisional = media de los 10 ítems (suma en `secondary_score`). No se recogen los datos sociodemográficos de cabecera ni los comentarios libres. [P]
+- **Validar (IP):** en la visita basal el paciente puede no haber recibido aún atención farmacéutica del estudio; definir a qué atención se refiere la respuesta basal. [P]
 
 ## 9. Adherencia
 

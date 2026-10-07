@@ -1,6 +1,7 @@
 import { DLQI_BAND_LABEL, scoreDlqi } from "./dlqi";
+import { scoreEvasaf } from "./evasaf";
 
-export type QuestionnaireType = "iexpac" | "morisky" | "eq5d" | "pam10" | "dlqi";
+export type QuestionnaireType = "iexpac" | "morisky" | "eq5d" | "pam10" | "dlqi" | "evasaf";
 
 export const CANONICAL_QUESTIONNAIRE_CODE: Record<QuestionnaireType, string> = {
   iexpac: "IEXPAC",
@@ -8,6 +9,7 @@ export const CANONICAL_QUESTIONNAIRE_CODE: Record<QuestionnaireType, string> = {
   eq5d: "EQ5D_5L",
   pam10: "PAM10",
   dlqi: "DLQI",
+  evasaf: "EVASAF",
 };
 
 export type QuestionnaireScores = {
@@ -53,6 +55,7 @@ export function normalizeQuestionnaireCode(
   if (value === "pam10" || value === "pam-10" || value === "pam_10")
     return "pam10";
   if (value === "dlqi") return "dlqi";
+  if (value === "evasaf") return "evasaf";
 
   return null;
 }
@@ -84,6 +87,12 @@ export function deriveQuestionnaireScores(
       totalScore: Number(((10 * (sum - 11)) / 44).toFixed(2)),
       secondaryScore: parseNumber(responses.q12),
     };
+  }
+
+  if (questionnaireType === "evasaf") {
+    // totalScore = media de los 10 ítems (1-5; provisional); secondaryScore = suma (10-50).
+    const evasaf = scoreEvasaf(responses);
+    return { totalScore: evasaf.mean, secondaryScore: evasaf.sum };
   }
 
   if (questionnaireType === "dlqi") {
@@ -162,6 +171,11 @@ export function formatQuestionnaireResult(result: QuestionnaireResult): string {
         ? ""
         : ` · ítem 12 (tras alta hospitalaria): ${result.secondary_score}/5`;
     return `IEXPAC (experiencia de atención) · puntuación global: ${total}${q12}`;
+  }
+
+  if (result.questionnaire_type === "evasaf") {
+    const mean = result.total_score === null ? "no calculable" : `${result.total_score}/5`;
+    return `EVASAF (satisfacción con la atención farmacéutica) · media de los 10 ítems: ${mean}`;
   }
 
   if (result.questionnaire_type === "dlqi") {

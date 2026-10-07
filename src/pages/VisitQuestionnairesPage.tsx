@@ -22,6 +22,7 @@ import {
   DLQI_SEVERITY_OPTIONS,
   scoreDlqi,
 } from '../services/dlqi';
+import { EVASAF_ITEMS, EVASAF_SCALE, scoreEvasaf } from '../services/evasaf';
 
 const IEXPAC_ITEM_KEYS = Array.from({ length: 11 }, (_, idx) => `q${idx + 1}` as const);
 const EQ5D_DIMENSIONS = ['mobility', 'selfcare', 'activities', 'pain', 'anxiety'] as const;
@@ -210,6 +211,30 @@ function hydrateDlqi(record: QuestionnaireResponseRecord | undefined): DlqiForm 
   return out;
 }
 
+type EvasafForm = Record<string, '' | `${LikertValue}`>;
+const EMPTY_EVASAF: EvasafForm = Object.fromEntries(EVASAF_ITEMS.map((item) => [item.key, '']));
+
+function calculateEvasaf(form: EvasafForm): { responses: Record<string, number>; mean: number | null; sum: number | null } | null {
+  const responses: Record<string, number> = {};
+  for (const item of EVASAF_ITEMS) {
+    const value = parseLikert(form[item.key] ?? '');
+    if (value === null) return null;
+    responses[item.key] = value;
+  }
+  const score = scoreEvasaf(responses);
+  return { responses, mean: score.mean, sum: score.sum };
+}
+
+function hydrateEvasaf(record: QuestionnaireResponseRecord | undefined): EvasafForm {
+  const r = record?.responses ?? {};
+  const out: EvasafForm = { ...EMPTY_EVASAF };
+  EVASAF_ITEMS.forEach((item) => {
+    const v = r[item.key];
+    if (v === 1 || v === 2 || v === 3 || v === 4 || v === 5) out[item.key] = String(v) as `${LikertValue}`;
+  });
+  return out;
+}
+
 function hydrateIexpac(record: QuestionnaireResponseRecord | undefined): IexpacForm {
   const r = record?.responses ?? {};
   const out: IexpacForm = {
@@ -283,6 +308,7 @@ export function VisitQuestionnairesPage() {
   const [eq5dForm, setEq5dForm] = useState<Eq5dForm>({ mobility: '', selfcare: '', activities: '', pain: '', anxiety: '', vas: '' });
   const [pam10Form, setPam10Form] = useState<Pam10Form>({ q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '', q9: '', q10: '' });
   const [dlqiForm, setDlqiForm] = useState<DlqiForm>(EMPTY_DLQI);
+  const [evasafForm, setEvasafForm] = useState<EvasafForm>(EMPTY_EVASAF);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -294,6 +320,7 @@ export function VisitQuestionnairesPage() {
   const eq5dMetrics = useMemo(() => calculateEq5d(eq5dForm), [eq5dForm]);
   const pam10Metrics = useMemo(() => calculatePam10(pam10Form), [pam10Form]);
   const dlqiMetrics = useMemo(() => calculateDlqi(dlqiForm), [dlqiForm]);
+  const evasafMetrics = useMemo(() => calculateEvasaf(evasafForm), [evasafForm]);
 
   useEffect(() => {
     async function loadData() {
@@ -317,6 +344,7 @@ export function VisitQuestionnairesPage() {
       setEq5dForm(hydrateEq5d(byType.get('eq5d')));
       setPam10Form(hydratePam10(byType.get('pam10')));
       setDlqiForm(hydrateDlqi(byType.get('dlqi')));
+      setEvasafForm(hydrateEvasaf(byType.get('evasaf')));
     }
 
     void loadData();
@@ -337,8 +365,8 @@ export function VisitQuestionnairesPage() {
       return;
     }
 
-    if (!iexpacMetrics || !moriskyMetrics || !eq5dMetrics || !pam10Metrics || !dlqiMetrics) {
-      setErrorMessage('Completa todos los campos obligatorios de IEXPAC, DLQI, Morisky, EQ-5D-5L y PAM-10.');
+    if (!iexpacMetrics || !moriskyMetrics || !eq5dMetrics || !pam10Metrics || !dlqiMetrics || !evasafMetrics) {
+      setErrorMessage('Completa todos los campos obligatorios de IEXPAC, DLQI, EVASAF, Morisky, EQ-5D-5L y PAM-10.');
       return;
     }
 
@@ -356,6 +384,13 @@ export function VisitQuestionnairesPage() {
         responses: dlqiMetrics.responses,
         total_score: dlqiMetrics.total,
         secondary_score: dlqiMetrics.missing,
+      },
+      {
+        visit_id: visitId,
+        questionnaire_type: 'evasaf',
+        responses: evasafMetrics.responses,
+        total_score: evasafMetrics.mean,
+        secondary_score: evasafMetrics.sum,
       },
       {
         visit_id: visitId,
@@ -401,6 +436,7 @@ export function VisitQuestionnairesPage() {
     setEq5dForm(hydrateEq5d(refreshedByType.get('eq5d')));
     setPam10Form(hydratePam10(refreshedByType.get('pam10')));
     setDlqiForm(hydrateDlqi(refreshedByType.get('dlqi')));
+    setEvasafForm(hydrateEvasaf(refreshedByType.get('evasaf')));
     setSuccessMessage('Cuestionarios guardados correctamente.');
   };
 
@@ -445,8 +481,8 @@ export function VisitQuestionnairesPage() {
           adherencia…) y sus reglas de puntuación se configurarán a partir del protocolo.
         */}
         <Notice tone="warning">
-          IEXPAC y DLQI forman parte del protocolo DERMAPEX (licencia del DLQI pendiente). Morisky-Green, EQ-5D-5L y
-          PAM-10 son instrumentos heredados de IRIS, pendientes de validación. POEM, NRS de prurito y EVASAF aún no
+          IEXPAC, DLQI y EVASAF forman parte del protocolo DERMAPEX (licencia del DLQI pendiente). Morisky-Green, EQ-5D-5L y
+          PAM-10 son instrumentos heredados de IRIS, pendientes de validación. POEM y NRS de prurito aún no
           están configurados.
         </Notice>
 
@@ -587,6 +623,40 @@ export function VisitQuestionnairesPage() {
               {dlqiMetrics && dlqiMetrics.total !== null ? ` · ${DLQI_BAND_LABEL[scoreDlqi(dlqiMetrics.responses).band ?? 'sin_efecto']}` : ''}
             </p>
           </article>
+
+          <article className="questionnaire-card">
+            <h2>EVASAF – Satisfacción con la atención farmacéutica</h2>
+            <p className="help-text">
+              Con la atención farmacéutica que recibe en la consulta de Farmacia de su hospital. 1 = muy deficiente,
+              5 = excelente. Los 10 ítems son obligatorios.
+            </p>
+            <div className="questionnaire-grid">
+              {EVASAF_ITEMS.map((item, index) => (
+                <fieldset key={item.key} className="questionnaire-item">
+                  <legend>{index + 1}. {item.text}</legend>
+                  <div className="radio-row">
+                    {EVASAF_SCALE.map((option) => (
+                      <label key={option.value} className="radio-inline">
+                        <input
+                          type="radio"
+                          name={`evasaf-${item.key}`}
+                          value={option.value}
+                          checked={evasafForm[item.key] === String(option.value)}
+                          onChange={() => setEvasafForm((prev) => ({ ...prev, [item.key]: String(option.value) as `${LikertValue}` }))}
+                          disabled={!questionnaireEnabled}
+                        />
+                        {option.value === 1 || option.value === 5 ? `${option.value} · ${option.label}` : option.value}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
+            <p className="questionnaire-result">
+              Media EVASAF (provisional): <strong>{evasafMetrics?.mean ?? '-'}</strong> / 5
+            </p>
+          </article>
+
 
 
           <article className="questionnaire-card">
