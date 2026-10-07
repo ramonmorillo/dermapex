@@ -16,15 +16,20 @@ export type Intervention = {
   catalog_item_id?: string | null;
   catalog_code?: string | null;
   catalog_version?: string | null;
+  /** Actividad del listado de AF estándar (solo centros standard). Código, versión, texto y categoría los sella la BD. */
+  usual_care_item_id?: string | null;
+  usual_care_code?: string | null;
+  usual_care_version?: string | null;
   created_at?: string;
   updated_at?: string;
 };
 
-export type NewInterventionInput = Omit<Intervention, 'id' | 'created_at' | 'updated_at' | 'catalog_code' | 'catalog_version'>;
-export type UpdateInterventionInput = Partial<Omit<Intervention, 'id' | 'visit_id' | 'created_at' | 'updated_at' | 'catalog_code' | 'catalog_version'>>;
+type ServerStampedFields = 'catalog_code' | 'catalog_version' | 'usual_care_code' | 'usual_care_version';
+export type NewInterventionInput = Omit<Intervention, 'id' | 'created_at' | 'updated_at' | ServerStampedFields>;
+export type UpdateInterventionInput = Partial<Omit<Intervention, 'id' | 'visit_id' | 'created_at' | 'updated_at' | ServerStampedFields>>;
 
 const INTERVENTION_SELECT =
-  'id,visit_id,intervention_type,intervention_domain,priority_level,delivered,linked_to_cmo_level,outcome,notes,catalog_item_id,catalog_code,catalog_version,created_at,updated_at';
+  'id,visit_id,intervention_type,intervention_domain,priority_level,delivered,linked_to_cmo_level,outcome,notes,catalog_item_id,catalog_code,catalog_version,usual_care_item_id,usual_care_code,usual_care_version,created_at,updated_at';
 
 function extractErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {

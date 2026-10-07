@@ -12,6 +12,16 @@ import {
   type QuestionnaireResponseUpsertInput,
 } from '../services/questionnaireService';
 import { getVisitById } from '../services/visitService';
+import {
+  DLQI_BAND_LABEL,
+  DLQI_ITEMS,
+  DLQI_NOT_RELEVANT,
+  DLQI_Q7B_OPTIONS,
+  DLQI_Q7B_TEXT,
+  DLQI_Q7_TEXT,
+  DLQI_SEVERITY_OPTIONS,
+  scoreDlqi,
+} from '../services/dlqi';
 
 const IEXPAC_ITEM_KEYS = Array.from({ length: 11 }, (_, idx) => `q${idx + 1}` as const);
 const EQ5D_DIMENSIONS = ['mobility', 'selfcare', 'activities', 'pain', 'anxiety'] as const;
@@ -164,6 +174,42 @@ function calculatePam10(form: Pam10Form): { totalScore: number; responses: Recor
   };
 }
 
+type DlqiItemValue = '' | '0' | '1' | '2' | '3' | typeof DLQI_NOT_RELEVANT;
+type DlqiGeneralKey = 'q1' | 'q2' | 'q3' | 'q4' | 'q5' | 'q6' | 'q8' | 'q9' | 'q10';
+type DlqiForm = Record<DlqiGeneralKey, DlqiItemValue> & { q7: '' | 'yes' | 'no' | typeof DLQI_NOT_RELEVANT; q7b: '' | '0' | '1' | '2' };
+
+const EMPTY_DLQI: DlqiForm = { q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q8: '', q9: '', q10: '', q7: '', q7b: '' };
+
+// En pantalla se exigen todos los ítems; la regla de ausentes de Cardiff se aplica igualmente al puntuar.
+function calculateDlqi(form: DlqiForm): { responses: Record<string, unknown>; total: number | null; missing: number } | null {
+  const responses: Record<string, unknown> = {};
+  for (const item of DLQI_ITEMS) {
+    const value = form[item.key as DlqiGeneralKey];
+    if (!value) return null;
+    responses[item.key] = value === DLQI_NOT_RELEVANT ? DLQI_NOT_RELEVANT : Number(value);
+  }
+  if (!form.q7) return null;
+  responses.q7 = form.q7;
+  if (form.q7 === 'no') {
+    if (!form.q7b) return null;
+    responses.q7b = Number(form.q7b);
+  }
+  const score = scoreDlqi(responses);
+  return { responses, total: score.total, missing: score.missingItems };
+}
+
+function hydrateDlqi(record: QuestionnaireResponseRecord | undefined): DlqiForm {
+  const r = record?.responses ?? {};
+  const out: DlqiForm = { ...EMPTY_DLQI };
+  DLQI_ITEMS.forEach((item) => {
+    const v = r[item.key];
+    if (v === DLQI_NOT_RELEVANT || v === 0 || v === 1 || v === 2 || v === 3) out[item.key as DlqiGeneralKey] = String(v) as DlqiItemValue;
+  });
+  if (r.q7 === 'yes' || r.q7 === 'no' || r.q7 === DLQI_NOT_RELEVANT) out.q7 = r.q7;
+  if (r.q7b === 0 || r.q7b === 1 || r.q7b === 2) out.q7b = String(r.q7b) as DlqiForm['q7b'];
+  return out;
+}
+
 function hydrateIexpac(record: QuestionnaireResponseRecord | undefined): IexpacForm {
   const r = record?.responses ?? {};
   const out: IexpacForm = {
@@ -236,6 +282,7 @@ export function VisitQuestionnairesPage() {
   const [moriskyForm, setMoriskyForm] = useState<MoriskyForm>({ q1: '', q2: '', q3: '', q4: '' });
   const [eq5dForm, setEq5dForm] = useState<Eq5dForm>({ mobility: '', selfcare: '', activities: '', pain: '', anxiety: '', vas: '' });
   const [pam10Form, setPam10Form] = useState<Pam10Form>({ q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '', q9: '', q10: '' });
+  const [dlqiForm, setDlqiForm] = useState<DlqiForm>(EMPTY_DLQI);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -246,6 +293,7 @@ export function VisitQuestionnairesPage() {
   const moriskyMetrics = useMemo(() => calculateMorisky(moriskyForm), [moriskyForm]);
   const eq5dMetrics = useMemo(() => calculateEq5d(eq5dForm), [eq5dForm]);
   const pam10Metrics = useMemo(() => calculatePam10(pam10Form), [pam10Form]);
+  const dlqiMetrics = useMemo(() => calculateDlqi(dlqiForm), [dlqiForm]);
 
   useEffect(() => {
     async function loadData() {
@@ -268,6 +316,7 @@ export function VisitQuestionnairesPage() {
       setMoriskyForm(hydrateMorisky(byType.get('morisky')));
       setEq5dForm(hydrateEq5d(byType.get('eq5d')));
       setPam10Form(hydratePam10(byType.get('pam10')));
+      setDlqiForm(hydrateDlqi(byType.get('dlqi')));
     }
 
     void loadData();
@@ -288,8 +337,8 @@ export function VisitQuestionnairesPage() {
       return;
     }
 
-    if (!iexpacMetrics || !moriskyMetrics || !eq5dMetrics || !pam10Metrics) {
-      setErrorMessage('Completa todos los campos obligatorios de IEXPAC, Morisky, EQ-5D-5L y PAM-10.');
+    if (!iexpacMetrics || !moriskyMetrics || !eq5dMetrics || !pam10Metrics || !dlqiMetrics) {
+      setErrorMessage('Completa todos los campos obligatorios de IEXPAC, DLQI, Morisky, EQ-5D-5L y PAM-10.');
       return;
     }
 
@@ -300,6 +349,13 @@ export function VisitQuestionnairesPage() {
         responses: iexpacMetrics.responses,
         total_score: iexpacMetrics.totalScore,
         secondary_score: iexpacMetrics.secondaryScore,
+      },
+      {
+        visit_id: visitId,
+        questionnaire_type: 'dlqi',
+        responses: dlqiMetrics.responses,
+        total_score: dlqiMetrics.total,
+        secondary_score: dlqiMetrics.missing,
       },
       {
         visit_id: visitId,
@@ -344,7 +400,35 @@ export function VisitQuestionnairesPage() {
     setMoriskyForm(hydrateMorisky(refreshedByType.get('morisky')));
     setEq5dForm(hydrateEq5d(refreshedByType.get('eq5d')));
     setPam10Form(hydratePam10(refreshedByType.get('pam10')));
+    setDlqiForm(hydrateDlqi(refreshedByType.get('dlqi')));
     setSuccessMessage('Cuestionarios guardados correctamente.');
+  };
+
+  const renderDlqiItem = (item: (typeof DLQI_ITEMS)[number]) => {
+    const options: Array<{ value: DlqiItemValue; label: string }> = [
+      ...DLQI_SEVERITY_OPTIONS.map((o) => ({ value: String(o.value) as DlqiItemValue, label: o.label })),
+      ...(item.allowsNotRelevant ? [{ value: DLQI_NOT_RELEVANT as DlqiItemValue, label: 'Sin relación' }] : []),
+    ];
+    return (
+      <fieldset key={item.key} className="questionnaire-item">
+        <legend>{item.key.slice(1)}. {item.text}</legend>
+        <div className="radio-row">
+          {options.map((option) => (
+            <label key={option.value} className="radio-inline">
+              <input
+                type="radio"
+                name={`dlqi-${item.key}`}
+                value={option.value}
+                checked={dlqiForm[item.key as DlqiGeneralKey] === option.value}
+                onChange={() => setDlqiForm((prev) => ({ ...prev, [item.key]: option.value }))}
+                disabled={!questionnaireEnabled}
+              />
+              {option.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    );
   };
 
   return (
@@ -361,8 +445,9 @@ export function VisitQuestionnairesPage() {
           adherencia…) y sus reglas de puntuación se configurarán a partir del protocolo.
         */}
         <Notice tone="warning">
-          Instrumentos heredados de IRIS, pendientes de validación para DERMAPEX. La batería de cuestionarios del
-          protocolo DERMAPEX (incluidos POEM, NRS de prurito, DLQI y EVASAF) aún no está configurada.
+          IEXPAC y DLQI forman parte del protocolo DERMAPEX (licencia del DLQI pendiente). Morisky-Green, EQ-5D-5L y
+          PAM-10 son instrumentos heredados de IRIS, pendientes de validación. POEM, NRS de prurito y EVASAF aún no
+          están configurados.
         </Notice>
 
         {!questionnaireEnabled ? (
@@ -445,6 +530,64 @@ export function VisitQuestionnairesPage() {
               Puntuación global IEXPAC (ítems 1-11): <strong>{iexpacMetrics ? iexpacMetrics.totalScore.toFixed(2) : '-'}</strong> / 10
             </p>
           </article>
+
+          <article className="questionnaire-card">
+            <h2>DLQI – Calidad de vida dermatológica</h2>
+            <p className="help-text">
+              Cuánto le han afectado sus problemas de piel en su vida durante los últimos 7 días. Todos los ítems son
+              obligatorios; use «Sin relación» cuando la situación no aplique.
+            </p>
+            <div className="questionnaire-grid">
+              {DLQI_ITEMS.slice(0, 6).map((item) => renderDlqiItem(item))}
+
+              <fieldset className="questionnaire-item">
+                <legend>7. {DLQI_Q7_TEXT}</legend>
+                <div className="radio-row">
+                  {([['yes', 'Sí'], ['no', 'No'], [DLQI_NOT_RELEVANT, 'Sin relación']] as const).map(([value, label]) => (
+                    <label key={value} className="radio-inline">
+                      <input
+                        type="radio"
+                        name="dlqi-q7"
+                        value={value}
+                        checked={dlqiForm.q7 === value}
+                        onChange={() => setDlqiForm((prev) => ({ ...prev, q7: value, q7b: value === 'no' ? prev.q7b : '' }))}
+                        disabled={!questionnaireEnabled}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                {dlqiForm.q7 === 'no' ? (
+                  <>
+                    <p className="help-text">{DLQI_Q7B_TEXT}</p>
+                    <div className="radio-row">
+                      {DLQI_Q7B_OPTIONS.map((option) => (
+                        <label key={option.value} className="radio-inline">
+                          <input
+                            type="radio"
+                            name="dlqi-q7b"
+                            value={option.value}
+                            checked={dlqiForm.q7b === String(option.value)}
+                            onChange={() => setDlqiForm((prev) => ({ ...prev, q7b: String(option.value) as DlqiForm['q7b'] }))}
+                            disabled={!questionnaireEnabled}
+                          />
+                          {option.label}
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+              </fieldset>
+
+              {DLQI_ITEMS.slice(6).map((item) => renderDlqiItem(item))}
+            </div>
+
+            <p className="questionnaire-result">
+              Puntuación DLQI: <strong>{dlqiMetrics && dlqiMetrics.total !== null ? dlqiMetrics.total : '-'}</strong> / 30
+              {dlqiMetrics && dlqiMetrics.total !== null ? ` · ${DLQI_BAND_LABEL[scoreDlqi(dlqiMetrics.responses).band ?? 'sin_efecto']}` : ''}
+            </p>
+          </article>
+
 
           <article className="questionnaire-card">
             <h2>Morisky-Green (4 ítems)</h2>

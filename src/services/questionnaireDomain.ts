@@ -1,10 +1,13 @@
-export type QuestionnaireType = "iexpac" | "morisky" | "eq5d" | "pam10";
+import { DLQI_BAND_LABEL, scoreDlqi } from "./dlqi";
+
+export type QuestionnaireType = "iexpac" | "morisky" | "eq5d" | "pam10" | "dlqi";
 
 export const CANONICAL_QUESTIONNAIRE_CODE: Record<QuestionnaireType, string> = {
   iexpac: "IEXPAC",
   morisky: "MORISKY_GREEN",
   eq5d: "EQ5D_5L",
   pam10: "PAM10",
+  dlqi: "DLQI",
 };
 
 export type QuestionnaireScores = {
@@ -49,6 +52,7 @@ export function normalizeQuestionnaireCode(
     return "eq5d";
   if (value === "pam10" || value === "pam-10" || value === "pam_10")
     return "pam10";
+  if (value === "dlqi") return "dlqi";
 
   return null;
 }
@@ -80,6 +84,12 @@ export function deriveQuestionnaireScores(
       totalScore: Number(((10 * (sum - 11)) / 44).toFixed(2)),
       secondaryScore: parseNumber(responses.q12),
     };
+  }
+
+  if (questionnaireType === "dlqi") {
+    // secondaryScore = número de ítems sin contestar (con 2 o más no se puntúa).
+    const dlqi = scoreDlqi(responses);
+    return { totalScore: dlqi.total, secondaryScore: dlqi.missingItems };
   }
 
   if (questionnaireType === "morisky") {
@@ -152,6 +162,14 @@ export function formatQuestionnaireResult(result: QuestionnaireResult): string {
         ? ""
         : ` · ítem 12 (tras alta hospitalaria): ${result.secondary_score}/5`;
     return `IEXPAC (experiencia de atención) · puntuación global: ${total}${q12}`;
+  }
+
+  if (result.questionnaire_type === "dlqi") {
+    const dlqi = scoreDlqi(result.responses);
+    if (dlqi.total === null) {
+      return `DLQI (calidad de vida dermatológica) · no puntuable (${dlqi.missingItems} ítems sin contestar)`;
+    }
+    return `DLQI (calidad de vida dermatológica) · ${dlqi.total}/30 · ${dlqi.band ? DLQI_BAND_LABEL[dlqi.band] : ""}`;
   }
 
   if (result.questionnaire_type === "morisky") {

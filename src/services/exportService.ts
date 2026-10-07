@@ -4,6 +4,7 @@ import { getVisitTypeLabel } from '../constants/enums';
 import { supabase } from '../lib/supabase';
 import { buildSavFile } from '../utils/spssWriter';
 import type { StratificationItemValueRow, StratificationRegistryRow } from './cmoStratificationService';
+import { dlqiBand } from './dlqi';
 import { listAllQuestionnaires } from './questionnaireService';
 import { buildStratificationExportRows, stratificationSpssDictionary } from './stratificationExport';
 
@@ -76,14 +77,29 @@ type InterventionRow = {
   notes: string | null;
   catalog_code: string | null;
   catalog_version: string | null;
+  usual_care_code: string | null;
+  usual_care_version: string | null;
   created_at: string | null;
 };
+
+const USUAL_CARE_NO_INTERVENTION_CODE = 'sin-intervencion';
+
+/** Actividades reales de la visita: excluye el marcador «Sin intervención» del listado estándar. */
+export function countRealInterventions(interventions: Array<Pick<InterventionRow, 'usual_care_code'>>): number {
+  return interventions.filter((row) => row.usual_care_code !== USUAL_CARE_NO_INTERVENTION_CODE).length;
+}
+
+/** Distingue «no registrado» de «sin intervención» (un hueco no es un cero). */
+export function interventionRecordStatus(interventions: Array<Pick<InterventionRow, 'usual_care_code'>>): 'sin_registro' | 'sin_intervencion' | 'con_intervencion' {
+  if (interventions.length === 0) return 'sin_registro';
+  return countRealInterventions(interventions) === 0 ? 'sin_intervencion' : 'con_intervencion';
+}
 
 type QuestionnaireRow = {
   visit_id: string;
   patient_id: string | null;
   visit_type: string;
-  questionnaire_type: 'iexpac' | 'morisky' | 'eq5d';
+  questionnaire_type: 'iexpac' | 'morisky' | 'eq5d' | 'pam10' | 'dlqi';
   responses: Record<string, unknown>;
   total_score: number | null;
   secondary_score: number | null;
@@ -230,7 +246,9 @@ function buildAnonymousPatientIds(patients: PatientRow[]): Map<string, string> {
   return new Map(sorted.map((patient, index) => [patient.id, `P${String(index + 1).padStart(4, '0')}`]));
 }
 
-function getMainPillar(interventions: InterventionRow[]): string {
+function getMainPillar(allInterventions: InterventionRow[]): string {
+  // Solo intervenciones CMO: las del listado estándar no tienen pilar CMO.
+  const interventions = allInterventions.filter((intervention) => !intervention.usual_care_code);
   if (interventions.length === 0) return '';
 
   const counts = new Map<string, number>();
@@ -430,7 +448,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     supabase.from('patients').select('id,study_code,inclusion_date,age_at_inclusion,sex,created_at,center:centers(code,study_arm)').order('created_at', { ascending: true }),
     supabase.from('visits').select('id,patient_id,visit_type,visit_number,visit_date,scheduled_date,created_at').order('created_at', { ascending: true }),
     supabase.from('cmo_scores').select('visit_id,score,priority'),
-    supabase.from('interventions').select('id,visit_id,intervention_type,intervention_domain,priority_level,delivered,linked_to_cmo_level,outcome,notes,catalog_code,catalog_version,created_at').order('created_at', { ascending: true }),
+    supabase.from('interventions').select('id,visit_id,intervention_type,intervention_domain,priority_level,delivered,linked_to_cmo_level,outcome,notes,catalog_code,catalog_version,usual_care_code,usual_care_version,created_at').order('created_at', { ascending: true }),
     listAllQuestionnaires(),
     supabase
       .from('patient_medications')
@@ -512,6 +530,8 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     const finalMorisky = finalVisitId ? questionnaireByVisitAndType.get(finalVisitId)?.get('morisky') : null;
     const baselineEq5d = baselineVisitId ? questionnaireByVisitAndType.get(baselineVisitId)?.get('eq5d') : null;
     const finalEq5d = finalVisitId ? questionnaireByVisitAndType.get(finalVisitId)?.get('eq5d') : null;
+    const dlqiBasal = (baselineVisitId ? questionnaireByVisitAndType.get(baselineVisitId)?.get('dlqi')?.total_score : null) ?? null;
+    const dlqiFinal = (finalVisitId ? questionnaireByVisitAndType.get(finalVisitId)?.get('dlqi')?.total_score : null) ?? null;
 
     const iexpacBasal = baselineIexpac?.total_score ?? null;
     const iexpacFinal = finalIexpac?.total_score ?? null;
@@ -534,6 +554,11 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
       EQ5Dvas_basal: eq5dVasBasal,
       EQ5Dvas_final: eq5dVasFinal,
       delta_EQ5Dvas: eq5dVasBasal !== null && eq5dVasFinal !== null ? Number((eq5dVasFinal - eq5dVasBasal).toFixed(2)) : null,
+      DLQI_basal: dlqiBasal,
+      DLQI_banda_basal: dlqiBand(dlqiBasal) ?? '',
+      DLQI_final: dlqiFinal,
+      DLQI_banda_final: dlqiBand(dlqiFinal) ?? '',
+      delta_DLQI: dlqiBasal !== null && dlqiFinal !== null ? dlqiFinal - dlqiBasal : null,
     };
   });
 
@@ -558,6 +583,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
       IEXPAC: q?.get('iexpac')?.total_score ?? null,
       Morisky: q?.get('morisky')?.total_score ?? null,
       EQ5D_vas: q?.get('eq5d')?.secondary_score ?? null,
+      DLQI: q?.get('dlqi')?.total_score ?? null,
     };
   });
 
@@ -566,12 +592,14 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     visit_id: anonymizedVisitIdByRawId.get(intervention.visit_id) ?? '',
     intervention_type: intervention.intervention_type,
     intervention_domain: intervention.intervention_domain,
-    cmo_pillar: intervention.intervention_domain ?? 'No asignado',
+    cmo_pillar: intervention.usual_care_code ? '' : intervention.intervention_domain ?? 'No asignado',
     priority_level: intervention.priority_level,
     delivered: intervention.delivered,
     linked_to_cmo_level: intervention.linked_to_cmo_level,
     catalog_code: intervention.catalog_code ?? '',
     catalog_version: intervention.catalog_version ?? '',
+    usual_care_code: intervention.usual_care_code ?? '',
+    usual_care_version: intervention.usual_care_version ?? '',
     outcome: intervention.outcome,
     notes: intervention.notes,
   }));
@@ -607,10 +635,12 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
       score_cmo: score?.score ?? null,
       nivel_cmo: score?.priority ?? null,
       IEXPAC: qByType?.get('iexpac')?.total_score ?? null,
+      DLQI: qByType?.get('dlqi')?.total_score ?? null,
       Morisky: qByType?.get('morisky')?.total_score ?? null,
       EQ5D_vas: qByType?.get('eq5d')?.secondary_score ?? null,
       EQ5D_profile: String(qByType?.get('eq5d')?.responses?.profile ?? ''),
-      n_intervenciones: visitInterventions.length,
+      n_intervenciones: countRealInterventions(visitInterventions),
+      registro_intervenciones: interventionRecordStatus(visitInterventions),
       pilar_principal: getMainPillar(visitInterventions),
       outcome: getVisitOutcome(visitInterventions),
       fecha_inclusion: patient?.inclusion_date ?? '',
@@ -673,7 +703,7 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
   const patientsCsv = toCsv(Object.keys(normalizedPatientsRows[0] ?? { patient_id: '' }), normalizedPatientsRows);
   const visitsCsv = toCsv(['visit_id', 'patient_id', 'visit_type', 'visit_number', 'visit_date', 'scheduled_date'], normalizedVisitsRows);
   const stratificationCsv = toCsv(Object.keys(normalizedStratificationRows[0] ?? { visit_id: '', patient_id: '' }), normalizedStratificationRows);
-  const interventionsCsv = toCsv(['intervention_id', 'visit_id', 'intervention_type', 'intervention_domain', 'cmo_pillar', 'priority_level', 'delivered', 'linked_to_cmo_level', 'catalog_code', 'catalog_version', 'outcome', 'notes'], normalizedInterventionsRows);
+  const interventionsCsv = toCsv(['intervention_id', 'visit_id', 'intervention_type', 'intervention_domain', 'cmo_pillar', 'priority_level', 'delivered', 'linked_to_cmo_level', 'catalog_code', 'catalog_version', 'usual_care_code', 'usual_care_version', 'outcome', 'notes'], normalizedInterventionsRows);
   const cmoStratificationHeaders = Object.keys(normalizedCmoStratificationRows[0] ?? { stratification_id: '' });
   const cmoStratificationCsv = toCsv(cmoStratificationHeaders, normalizedCmoStratificationRows);
   const cmoDictionary = stratificationSpssDictionary();
@@ -740,11 +770,13 @@ export async function exportResearchDataBundle(): Promise<ExportOutcome> {
     sexo: 'Sexo',
     score_cmo: 'Puntuacion CMO total',
     nivel_cmo: 'Nivel CMO (prioridad)',
-    IEXPAC: 'Puntuacion IEXPAC (capacitacion paciente)',
+    IEXPAC: 'Puntuacion IEXPAC 0-10 (experiencia del paciente cronico, items 1-11)',
+    DLQI: 'DLQI 0-30 (impacto de la enfermedad cutanea en la calidad de vida; vacio = no puntuable o no recogido)',
     Morisky: 'Puntuacion Morisky (adherencia)',
     EQ5D_vas: 'EQ5D VAS (calidad de vida)',
     EQ5D_profile: 'Perfil EQ5D',
-    n_intervenciones: 'Numero de intervenciones en la visita',
+    n_intervenciones: 'Numero de intervenciones en la visita (excluye el marcador Sin intervencion)',
+    registro_intervenciones: 'Registro de intervenciones: sin_registro / sin_intervencion / con_intervencion',
     pilar_principal: 'Pilar CMO dominante',
     outcome: 'Desenlace de intervencion',
     fecha_inclusion: 'Fecha de inclusion en el estudio',

@@ -35,7 +35,7 @@ import { getQuestionnairesByPatient, isQuestionnaireVisitType, type Questionnair
 import { listVisitsByPatient, updateVisit, type Visit } from '../services/visitService';
 import { getFollowupStatus } from '../utils/followupStatus';
 
-const REQUIRED_QUESTIONNAIRES = ['iexpac', 'morisky', 'eq5d'] as const;
+const REQUIRED_QUESTIONNAIRES = ['iexpac', 'dlqi', 'morisky', 'eq5d'] as const;
 
 const PRIORITY_LEVEL_LABEL: Record<PriorityLevel, string> = {
   high: 'Prioridad alta',
@@ -113,7 +113,7 @@ export function PatientDetailPage() {
   const [cmoHistory, setCmoHistory] = useState<CmoScoreHistoryEntry[]>([]);
   const [stratifications, setStratifications] = useState<StratificationRegistryRow[]>([]);
   const [profile, setProfile] = useState<CurrentProfile | null>(null);
-  const [interventions, setInterventions] = useState<Array<{ id: string; visit_id: string; intervention_type: string; priority_level: PriorityLevel | null }>>([]);
+  const [interventions, setInterventions] = useState<Array<{ id: string; visit_id: string; intervention_type: string; priority_level: PriorityLevel | null; usual_care_code?: string | null }>>([]);
   const [questionnaires, setQuestionnaires] = useState<QuestionnaireResponseRecord[]>([]);
   const [activeMedications, setActiveMedications] = useState<PatientMedication[]>([]);
   const [latestMedicationReviewDate, setLatestMedicationReviewDate] = useState<string | null>(null);
@@ -255,7 +255,9 @@ export function PatientDetailPage() {
   const interventionsByVisitId = useMemo(() => {
     const map = new Map<string, number>();
     interventions.forEach((item) => {
-      map.set(item.visit_id, (map.get(item.visit_id) ?? 0) + 1);
+      // El marcador «Sin intervención» (centros estándar) no cuenta como intervención.
+      const real = item.usual_care_code === 'sin-intervencion' ? 0 : 1;
+      map.set(item.visit_id, (map.get(item.visit_id) ?? 0) + real);
     });
     return map;
   }, [interventions]);
@@ -376,7 +378,7 @@ export function PatientDetailPage() {
             <Link className="button-link" to={`/patients/${patient.id}/visits/new`}>
               Nueva visita
             </Link>
-            {latestVisitId ? (
+            {latestVisitId && studyArm === 'cmo' ? (
               <Link className="button-link button-secondary" to={`/visits/${latestVisitId}/stratification`}>
                 Estratificar última visita
               </Link>
@@ -416,7 +418,7 @@ export function PatientDetailPage() {
                   status: visit.visit_status,
                   level: resultsVisible ? scoreEntry?.priority ?? null : null,
                   score: resultsVisible ? scoreEntry?.score ?? null : null,
-                  href: `/visits/${visit.id}/stratification`,
+                  href: studyArm === 'standard' ? `/visits/${visit.id}/interventions` : `/visits/${visit.id}/stratification`,
                 };
               })}
             />
@@ -480,9 +482,9 @@ export function PatientDetailPage() {
                         <td>
                           <div className="table-actions">
                             <Link to={`/patients/${id}/visits/${visit.id}`}>Detalle visita</Link>
-                            <Link to={`/visits/${visit.id}/stratification`}>Estratificación</Link>
+                            {studyArm === 'cmo' ? <Link to={`/visits/${visit.id}/stratification`}>Estratificación</Link> : null}
                             <Link to={`/visits/${visit.id}/medications`}>Medicación</Link>
-                            {studyArm === 'cmo' ? <Link to={`/visits/${visit.id}/interventions`}>Intervenciones</Link> : null}
+                            {studyArm ? <Link to={`/visits/${visit.id}/interventions`}>Intervenciones</Link> : null}
                             {isQuestionnaireVisitType(visit.visit_type) ? <Link to={`/visits/${visit.id}/questionnaires`}>Cuestionarios</Link> : null}
                           </div>
                         </td>

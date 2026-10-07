@@ -34,7 +34,7 @@ type VisitContext = {
 };
 
 // Contexto de solo lectura: identifica paciente y visita en todas las pantallas de visita.
-function VisitPatientContext({ visitId }: { visitId: string }) {
+function VisitPatientContext({ visitId, onArm }: { visitId: string; onArm: (arm: string | null) => void }) {
   const [context, setContext] = useState<VisitContext | null>(null);
 
   useEffect(() => {
@@ -56,6 +56,7 @@ function VisitPatientContext({ visitId }: { visitId: string }) {
       const score = scoreResult.status === 'fulfilled' ? scoreResult.value.data : null;
       const patient = patientResult.status === 'fulfilled' ? patientResult.value.data : null;
       const role = profileResult.status === 'fulfilled' ? profileResult.value.data?.role : null;
+      onArm(patient?.center?.study_arm ?? null);
       setContext({
         visit,
         patient,
@@ -111,11 +112,14 @@ function VisitPatientContext({ visitId }: { visitId: string }) {
 }
 
 export function VisitTabs({ visitId, active }: VisitTabsProps) {
+  const [arm, setArm] = useState<string | null>(null);
+  // Los centros de atención farmacéutica estándar no estratifican (decisión IP 2026-10-07).
+  const tabs = arm === 'standard' ? TABS.filter((tab) => tab.key !== 'clinical') : TABS;
   return (
     <>
-      <VisitPatientContext visitId={visitId} />
+      <VisitPatientContext visitId={visitId} onArm={setArm} />
       <nav className="visit-tabs" aria-label="Navegación de visita">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <Link
             key={tab.key}
             className={active === tab.key ? 'visit-tab active' : 'visit-tab'}

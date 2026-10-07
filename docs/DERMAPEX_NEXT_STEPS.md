@@ -37,6 +37,12 @@ Leyenda de dependencias: **[P]** protocolo/CRD · **[I]** instrumento validado (
 - Pendiente: redacción operativa de criterios para consulta (los actuales son literales de la fuente, pensados para extracción desde texto; DISC-4). [P]
 - Pendiente: calendario de visitas (§12) y su relación con los motivos de estratificación. [P]
 
+## 3b. Cohorte de atención farmacéutica estándar (decisión IP 2026-10-07)
+
+- ✅ Los centros `standard` **no estratifican**: bloqueado en BD (trigger en `cmo_scores`, migración `20261007090000`) y oculto en la interfaz. Sustituye la parte de D5 que registraba las variables CMO a ciegas.
+- ✅ Registran sus intervenciones seleccionándolas de un **listado neutro** por desplegable, sin texto libre (`usual_care_activity_catalog`, versión `af-estandar-0.1-borrador`, migración `20261007090100`). «Sin intervención en esta visita» es excluyente; cada actividad una vez por visita. La exportación distingue `sin_registro` / `sin_intervencion` / `con_intervencion`.
+- **Validar (IP):** contenido del listado (propuesta de Claude, no procede de una clasificación publicada) y si la cohorte CMO debe registrar también con el mismo listado para comparar entre cohortes. [P]
+
 ## 4. IEXPAC
 
 - ✅ Hecho (2026-10-07): ítems sustituidos por el texto literal de IEXPAC ©2015 castellano (15 ítems; 1-11 obligatorios, 12-15 condicionados con opción «No aplica»). Batería habilitada en `questionnaire_measurement_map` (migración `20261007080000`, aplicada): IEXPAC, MORISKY_GREEN, EQ5D_5L, PAM10.
@@ -56,7 +62,8 @@ Leyenda de dependencias: **[P]** protocolo/CRD · **[I]** instrumento validado (
 
 ## 7. DLQI
 
-- No implementado. Falta: versión española autorizada, reglas de ítems no aplicables/ausentes y bandas de interpretación del manual; licencia. [I]
+- ✅ Hecho (2026-10-07): DLQI de 10 ítems (texto aportado por el IP) en visitas basal y final, para ambas cohortes. Puntuación según Cardiff University (`src/services/dlqi.ts`): 0-3 por ítem, «Sin relación» = 0, ítem 7 (impide = 3; si no, 0-2), un ítem sin contestar = 0 y con 2+ no se puntúa; total 0-30 y bandas 0-1/2-5/6-10/11-20/21-30. Exportación: DLQI basal/final, banda y delta. Migración `20261007090200`.
+- **Pendiente:** licencia de uso de Cardiff (incluido el formato electrónico) y confirmar el texto con la versión española oficial. [I]
 
 ## 8. EVASAF
 

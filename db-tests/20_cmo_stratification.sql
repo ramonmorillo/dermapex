@@ -193,38 +193,50 @@ commit;
 -- ── Centro de la cohorte estándar (comparador) ──────────────────────────────
 begin;
 select dermapex_test.as_user('bbbbbbbb-1000-4000-8000-000000000001');
--- 72 años (2) + naïve (4) + adherencia (4) + polimedicación (3) + interacciones (3) + RAM (3) + mujer (1)
---   + modificación (3) + alcohol (3) + barreras (3) + comorbilidades (2) = 31 → nivel 1
-select dermapex_test.expect(
-  dermapex_test.save('b1000000-1000-4000-8000-000000000001',
+-- Decisión IP 2026-10-07: los centros estándar NO estratifican (bloqueado en BD).
+select dermapex_test.expect_fail(
+  $$select dermapex_test.save('b1000000-1000-4000-8000-000000000001',
     dermapex_test.answers(array['naive_terapia', 'falta_adherencia', 'polimedicacion', 'interacciones', 'reacciones_adversas', 'sexo_mujer', 'modificacion_regimen', 'alcoholismo_drogas', 'barreras_comunicacion', 'comorbilidades_2mas']),
-    31, 1::smallint) is not null,
-  'estándar: el centro registra la estratificación (se calcula y se guarda)');
+    31, 1::smallint)$$,
+  'estándar: el centro NO puede estratificar');
 select dermapex_test.expect((select count(*) from public.cmo_scores) = 0, 'estándar: NO puede leer puntuación ni nivel (cmo_scores)');
 select dermapex_test.expect((select count(*) from public.cmo_score_item_results) = 0, 'estándar: NO puede leer puntos por ítem');
-select dermapex_test.expect(
-  (select score is null and priority is null and special_rule_applied is null and block_scores is null and factors is null and not results_visible
-          and stratification_reason = 'baseline' and engine_version = 'cmo-dermapex-1.0.0+src.227e444' and study_arm = 'standard'
-     from public.cmo_stratification_registry where visit_id = 'b1000000-1000-4000-8000-000000000001'),
-  'estándar: la vista de registro enmascara puntuación, nivel, regla y desglose');
-select dermapex_test.expect(
-  (select count(*) = 28 and bool_and(item_score is null) and count(*) filter (where raw_value ->> 'value' = 'si') = 10
-     from public.cmo_stratification_item_values where visit_id = 'b1000000-1000-4000-8000-000000000001'),
-  'estándar: ve los valores brutos registrados, nunca los puntos');
 select dermapex_test.expect((select count(*) from public.intervention_catalog) = 0, 'estándar: NO ve el catálogo CMO de intervenciones');
 select dermapex_test.expect_fail($$insert into public.interventions (visit_id, intervention_type, intervention_domain, linked_to_cmo_level) values ('b1000000-1000-4000-8000-000000000001', 'x', 'Capacidad', 1)$$, 'estándar: no registra intervenciones CMO');
+select dermapex_test.expect((select count(*) from public.usual_care_activity_catalog where catalog_version = 'af-estandar-0.1-borrador') = 9, 'estándar: ve el listado neutro de actividades');
+select dermapex_test.expect_fail($$insert into public.interventions (visit_id, intervention_type, catalog_item_id) select 'b1000000-1000-4000-8000-000000000001', 'x', gen_random_uuid()$$, 'estándar: no admite tarjeta del catálogo CMO');
+insert into public.interventions (visit_id, intervention_type, usual_care_item_id, linked_to_cmo_level)
+select 'b1000000-1000-4000-8000-000000000001', 'texto manipulado', id, null from public.usual_care_activity_catalog where code = 'revision-adherencia';
+select dermapex_test.expect(
+  (select intervention_type = 'Revisión de la adherencia' and intervention_domain = 'Seguimiento' and usual_care_code = 'revision-adherencia'
+          and usual_care_version = 'af-estandar-0.1-borrador' and catalog_code is null and linked_to_cmo_level is null
+     from public.interventions where visit_id = 'b1000000-1000-4000-8000-000000000001'),
+  'estándar: actividad del listado con texto, categoría, código y versión sellados en servidor');
+select dermapex_test.expect_fail($$insert into public.interventions (visit_id, intervention_type, usual_care_item_id) select 'b1000000-1000-4000-8000-000000000001', 'x', id from public.usual_care_activity_catalog where code = 'revision-adherencia'$$, 'estándar: la misma actividad no se registra dos veces en una visita');
+select dermapex_test.expect_fail($$insert into public.interventions (visit_id, intervention_type, usual_care_item_id) select 'b1000000-1000-4000-8000-000000000001', 'x', id from public.usual_care_activity_catalog where code = 'sin-intervencion'$$, 'estándar: «Sin intervención» no se admite si ya hay actividades');
+select dermapex_test.expect_fail($$insert into public.interventions (visit_id, intervention_type, usual_care_item_id, linked_to_cmo_level) select 'b1000000-1000-4000-8000-000000000001', 'x', id, 1 from public.usual_care_activity_catalog where code = 'conciliacion'$$, 'estándar: no admite nivel CMO');
+insert into public.visits (id, patient_id, visit_type, visit_date) values
+  ('b1000000-1000-4000-8000-000000000002', 'b0000000-1000-4000-8000-000000000001', 'month_6', '2027-04-03');
+insert into public.interventions (visit_id, intervention_type, usual_care_item_id)
+select 'b1000000-1000-4000-8000-000000000002', 'x', id from public.usual_care_activity_catalog where code = 'sin-intervencion';
+select dermapex_test.expect_fail($$insert into public.interventions (visit_id, intervention_type, usual_care_item_id) select 'b1000000-1000-4000-8000-000000000002', 'x', id from public.usual_care_activity_catalog where code = 'conciliacion'$$, 'estándar: visita «Sin intervención» no admite actividades');
+update public.interventions set usual_care_item_id = (select id from public.usual_care_activity_catalog where code = 'conciliacion')
+ where visit_id = 'b1000000-1000-4000-8000-000000000002';
+select dermapex_test.expect((select usual_care_code = 'conciliacion' and intervention_type = 'Conciliación de la medicación' from public.interventions where visit_id = 'b1000000-1000-4000-8000-000000000002'), 'estándar: un registro se corrige cambiando la actividad (sellado de nuevo)');
+select dermapex_test.expect(dermapex_test.affected($$update public.usual_care_activity_catalog set is_active = false where code = 'otra'$$) = 0, 'estándar: un investigador no puede modificar el listado');
 select dermapex_test.expect((select count(*) from public.cmo_stratification_registry where center_id = '22222222-0000-4000-8000-000000000001') = 0, 'estándar: no ve estratificaciones del centro CMO');
 commit;
 
 -- ── Coordinación ────────────────────────────────────────────────────────────
 begin;
 select dermapex_test.as_user('cccccccc-0000-4000-8000-000000000001');
-select dermapex_test.expect((select score = 31 and priority = 1 from public.cmo_scores where visit_id = 'b1000000-1000-4000-8000-000000000001'), 'coordinación ve puntuación y nivel del brazo estándar');
-select dermapex_test.expect((select results_visible and score = 31 from public.cmo_stratification_registry where visit_id = 'b1000000-1000-4000-8000-000000000001'), 'coordinación: vista de registro sin enmascarar');
+select dermapex_test.expect((select count(*) from public.cmo_scores where visit_id = 'b1000000-1000-4000-8000-000000000001') = 0, 'brazo estándar: no existe ninguna estratificación');
+select dermapex_test.expect((select results_visible from public.cmo_stratification_registry where visit_id = 'a1000000-1000-4000-8000-000000000001'), 'coordinación: vista de registro sin enmascarar');
+select dermapex_test.expect_fail($$select dermapex_test.save('b1000000-1000-4000-8000-000000000001', dermapex_test.answers(), 0, 3::smallint)$$, 'ni coordinación puede estratificar un paciente del brazo estándar');
 select dermapex_test.expect(
   (select count(*) from public.audit_log
-    where table_name = 'cmo_scores' and action = 'INSERT' and actor_id = 'bbbbbbbb-1000-4000-8000-000000000001'
-      and visit_id = 'b1000000-1000-4000-8000-000000000001' and center_id = '22222222-0000-4000-8000-000000000002') = 1,
+    where table_name = 'cmo_scores' and action = 'INSERT' and actor_id = 'aaaaaaaa-1000-4000-8000-000000000001'
+      and visit_id = 'a1000000-1000-4000-8000-000000000001' and center_id = '22222222-0000-4000-8000-000000000001') = 1,
   'auditoría: alta de estratificación con autor, visita y centro');
 select dermapex_test.expect(
   (select count(*) from public.audit_log
@@ -237,6 +249,7 @@ select dermapex_test.expect((select count(*) from public.audit_log where table_n
 select dermapex_test.expect_fail($$update public.cmo_variable_catalog set options = '[{"value":"si","label":"Sí","points":9}]' where variable_code = 'tabaquismo'$$, 'los pesos del modelo no se pueden modificar');
 select dermapex_test.expect_fail($$update public.cmo_model_versions set level1_min_score = 30$$, 'los umbrales del modelo no se pueden modificar');
 select dermapex_test.expect_fail($$update public.intervention_catalog set label = 'Texto reescrito' where code = 'seg-control-adherencia'$$, 'los textos del catálogo de intervenciones no se pueden modificar');
+select dermapex_test.expect_fail($$update public.usual_care_activity_catalog set label = 'Texto reescrito' where code = 'conciliacion'$$, 'los textos del listado de AF estándar no se pueden modificar');
 update public.intervention_catalog set is_active = false where code = 'coord-asociaciones-pacientes';
 update public.intervention_catalog set is_active = true where code = 'coord-asociaciones-pacientes';
 select dermapex_test.expect(true, 'una tarjeta sí se puede retirar y reactivar (is_active)');
