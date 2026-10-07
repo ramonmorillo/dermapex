@@ -24,7 +24,9 @@ Diseño: `docs/coamo/SUPABASE_DERMAPEX_COAG_ARCHITECTURE.md` (Codex, 2026-10-07;
 - **Aviso permanente:** en `public`, los privilegios por defecto conceden todo a `anon` y `authenticated` sobre tablas y funciones nuevas. Cada tabla `coag_*` debe crearse con RLS activada y `revoke` explícitos en la misma migración. Toda tabla nueva de DERMAPEX debe añadirse al inventario de la barrera (lo verifica `db-tests/40_*`).
 - ✅ Fase 1 aplicada en Supabase el 2026-10-07 (PR #14) y Edge Function CIMA desplegada con la barrera (PR #15).
 - ✅ Fase 2 preparada (migraciones `20261007150000`/`150100`, pruebas `db-tests/50_coag_foundation.sql`): `coag_profiles`, `coag_centers` (7 reclutadores + Valme consultor; nombres y números provisionales), `coag_center_memberships`, `coag_audit_log`, helpers `coag_private`, alta administrativa `coag_private.provision_user` / `assign_center`. Frontend en el repositorio `ramonmorillo/COAMO`.
-- Pendiente fase 3: pacientes, visitas, contactos, CRD, cuestionarios, documentos (bucket `coag-visit-documents`) y CMO, según el blueprint. Bloqueado por el documento CMO de coagulopatías y las decisiones C01–C20.
+- ✅ Fase 2 aplicada en Supabase (2026-10-07; PR #16). App COAMO publicada en https://ramonmorillo.github.io/COAMO/.
+- ✅ Fase 3A preparada (migraciones `20261007170000`/`170100`, pruebas `db-tests/60_coag_patients_visits.sql`): nombres oficiales de centros (protocolo p. 9), pacientes `COAMO-<n>-NNNN`, elegibilidad y consentimiento (p. 9), visitas basal/seguimiento/final/contactos con ventana final 12 meses ±1, datos clínicos y de tratamiento (pp. 10-12).
+- Pendiente fase 3B: estratificación CMO (especificación `docs/coamo/COAMO_CMO_MODEL_SPEC.md`), actuaciones de AF y cuestionarios (requiere el texto oficial de IEXPAC, EQ-5D-3L y Morisky-Green).
 
 ## 1. Modelo de datos definitivo
 
