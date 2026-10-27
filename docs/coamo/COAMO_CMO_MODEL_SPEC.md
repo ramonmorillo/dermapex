@@ -98,3 +98,11 @@ Tablas 5 (P3), 6 (P2) y 7 (P1), acumulativas, en tres ámbitos: seguimiento farm
 - Reestratificación: P p. 14 solo visita inicial; M p. 18 periódica → resuelto con decisión 5.5.
 - Adherencia en seguimiento: P p. 12 (inicio y final) vs P p. 14 (inicial, seguimiento y final) → la tabla de P p. 14 se toma como referencia.
 - Seguimiento: P p. 15 indica que P3 no tiene visita de seguimiento; M p. 18 fija valoración anual para P3 → coherentes en un estudio de 12 meses.
+
+## 7. Implementación y decisiones posteriores (27/10/2026)
+
+- Documento del modelo aportado de nuevo como v2.0 (mismas tablas, cortes y excepciones que esta especificación).
+- Decisión del IP: se puede estratificar en **cualquier visita** (no solo V0); la basal sigue definiendo la prioridad del análisis (5.5).
+- Decisión del IP: las respuestas del modelo se guardan como **registro propio** (`public.coag_stratifications`, migración
+  `20261027120000_coag_stratifications.sql`, pruebas `db-tests/80_coag_stratifications.sql`); no se amplía el CRD clínico.
+- Detalle de implementación, correspondencia con el CRD e incoherencias de M: `docs/ESTRATIFICACION_CMO.md` del repositorio COAMO.
