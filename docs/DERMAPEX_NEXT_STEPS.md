@@ -8,6 +8,8 @@ Leyenda de dependencias: **[P]** protocolo/CRD · **[I]** instrumento validado (
 
 ## 0. Prerrequisitos transversales
 
+✅ **Aprobación ética:** dictamen favorable del **CEI Sevilla Sur**, código **SICEIA-2026-003487** (registrado en la app el 2026-10-28; `src/constants/institutional.ts`). Título aprobado: «Mejora de la experiencia del paciente con dermatitis atópica moderada-grave mediante la implementación de un modelo de atención farmacéutica CMO-MAPEX». Pendiente de registrar: fecha del dictamen y versión del protocolo y de la HIP/CI aprobadas.
+
 | Tarea | Dependencia |
 |---|---|
 | Protocolo DERMAPEX versionado + CRD/diccionario de datos (variable, tipo, unidades, rango, obligatoriedad, momento de recogida) | [P] |

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-import { PROJECT_IDENTITY, PROJECT_INSTITUTIONAL_REFERENCE } from '../../constants/institutional';
+import { PROJECT_IDENTITY, getEthicsApprovalText } from '../../constants/institutional';
 
 export function PublicFooter() {
   return (
@@ -9,8 +9,8 @@ export function PublicFooter() {
         <div>
           <strong>{PROJECT_IDENTITY.name}</strong>
           <p>{PROJECT_IDENTITY.subtitle}.</p>
-          {PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode ? (
-            <p className="public-footer-code">{PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode}</p>
+          {getEthicsApprovalText() ? (
+            <p className="public-footer-code">Aprobado por el {getEthicsApprovalText()}</p>
           ) : null}
         </div>
         <nav aria-label="Información legal y del servicio">
