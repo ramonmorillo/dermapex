@@ -145,10 +145,7 @@ export function AgendaPage() {
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
-    if (!newPatientId) return;
-    if (duplicateType && !window.confirm(`Este paciente ya tiene una visita «${getVisitTypeLabel(newVisitType)}». ¿Crear otra igualmente?`)) {
-      return;
-    }
+    if (!newPatientId || duplicateType) return;
     setCreating(true);
     setCreateMessage(null);
     const result = await createVisit({
@@ -314,7 +311,7 @@ export function AgendaPage() {
                   ))}
                 </select>
               </label>
-              <button type="submit" disabled={!newPatientId || creating}>{creating ? 'Creando...' : 'Crear cita'}</button>
+              <button type="submit" disabled={!newPatientId || duplicateType || creating}>{creating ? 'Creando...' : 'Crear cita'}</button>
             </div>
             {newPatientId ? (
               <p className="help-text">
@@ -323,7 +320,10 @@ export function AgendaPage() {
               </p>
             ) : null}
             {duplicateType ? (
-              <Notice tone="warning">El paciente ya tiene una visita «{getVisitTypeLabel(newVisitType)}» no cancelada.</Notice>
+              <Notice tone="warning">
+                El paciente ya tiene una visita «{getVisitTypeLabel(newVisitType)}» no cancelada. Solo puede haber una de cada tipo
+                del calendario: ábrela para reprogramarla o cancélala antes de crear otra.
+              </Notice>
             ) : null}
             {createMessage ? <Notice tone={createMessage.tone}>{createMessage.text}</Notice> : null}
           </form>

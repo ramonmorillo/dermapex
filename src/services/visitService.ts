@@ -20,7 +20,15 @@ export type Visit = {
 
 export type NewVisitInput = Omit<Visit, 'id' | 'created_at' | 'updated_at' | 'created_by'>;
 
+export const DUPLICATE_VISIT_TYPE_MESSAGE =
+  'El paciente ya tiene una visita no cancelada de este tipo. Ábrela y edítala, o cancélala antes de programar otra (las extraordinarias sí pueden repetirse).';
+
 function extractErrorMessage(error: unknown): string {
+  // Índice uq_visits_one_active_type_per_patient (migración 20261028120000).
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+    && error.message.includes('uq_visits_one_active_type_per_patient')) {
+    return DUPLICATE_VISIT_TYPE_MESSAGE;
+  }
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
     return error.message;
   }
