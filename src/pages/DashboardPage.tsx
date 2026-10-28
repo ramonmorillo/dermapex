@@ -13,7 +13,7 @@ import { TrendDelta } from '../components/ui/TrendDelta';
 import { CMO_LEVEL_META } from '../constants/cmoLevels';
 import { getVisitTypeLabel } from '../constants/enums';
 import { loadDashboardData, type DashboardData } from '../services/dashboardService';
-import { exportResearchDataBundle } from '../services/exportService';
+import { exportResearchDataBundle, type ExportFormat } from '../services/exportService';
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -22,6 +22,8 @@ export function DashboardPage() {
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('standard');
+  const [exportProgress, setExportProgress] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -44,7 +46,8 @@ export function DashboardPage() {
     setExportMessage(null);
     setExportError(null);
 
-    const result = await exportResearchDataBundle();
+    const result = await exportResearchDataBundle(exportFormat, setExportProgress);
+    setExportProgress(null);
 
     if (!result.success) {
       setExportError(result.errorMessage ?? 'No se pudieron exportar los datos.');
@@ -52,7 +55,7 @@ export function DashboardPage() {
       return;
     }
 
-    setExportMessage(`Exportación completada: ${result.generatedFiles.join(', ')}`);
+    setExportMessage(`Exportación completada y verificada. ${result.summary ?? result.generatedFiles.join(', ')}`);
     setExporting(false);
   };
 
@@ -88,20 +91,30 @@ export function DashboardPage() {
         title="Dashboard clínico"
         description="Panel operativo del estudio. Indicadores heredados de la infraestructura CMO, pendientes de validación para DERMAPEX."
         actions={
+          <>
+          <label className="export-format">
+            <span className="visually-hidden">Formato de los CSV</span>
+            <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value as ExportFormat)} disabled={exporting}>
+              <option value="standard">CSV estándar (coma; decimal punto) · SPSS, R, Stata</option>
+              <option value="spanish_excel">CSV Excel España (punto y coma; decimal coma)</option>
+            </select>
+          </label>
           <button
             type="button"
             className="button-secondary"
             onClick={handleExportData}
             disabled={exporting}
-            title="Genera archivos anonimizados: CSV (UTF-8), Excel (.xlsx), SPSS binario (.sav) y sintaxis .sps para importación reproducible."
+            title="Descarga un ZIP verificado: tablas completas, formatos largo y ancho, respuestas por ítem, diccionario, CSV + sintaxis SPSS (.sps), Excel, JSON y manifiesto con recuentos y huellas."
           >
             <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
               <path d="M8 2v8m0 0L5 7m3 3 3-3M3 12.5h10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             {exporting ? 'Exportando...' : 'Exportar datos'}
           </button>
+          </>
         }
       >
+        {exportProgress ? <Notice tone="info">{exportProgress}</Notice> : null}
         {exportMessage ? <Notice tone="success">{exportMessage}</Notice> : null}
         {exportError ? <Notice tone="danger">{exportError}</Notice> : null}
       </PageHeader>
