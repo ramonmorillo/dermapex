@@ -9,7 +9,7 @@ Para cada .sps de un paquete de exportación descomprimido:
      valores numéricos, fechas y textos.
 
 Uso:  python3 scripts/validate-export-spss.py <carpeta_del_paquete> [<carpeta> ...]
-Requisitos: pspp (apt install pspp) y pyreadstat (pip install pyreadstat).
+Requisitos: pspp (apt install pspp), pyreadstat y pandas (pip install pyreadstat pandas).
 Solo con datos sintéticos: no ejecutar sobre exportaciones con datos reales fuera del entorno seguro.
 """
 
