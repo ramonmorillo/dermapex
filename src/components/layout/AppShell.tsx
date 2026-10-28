@@ -154,6 +154,9 @@ export function AppShell() {
             <NavLink to="/patients/new" className={navLinkClass}>
               Nuevo paciente
             </NavLink>
+            <NavLink to="/agenda" className={navLinkClass}>
+              Agenda
+            </NavLink>
             <NavLink to="/project" className={navLinkClass}>
               Proyecto
             </NavLink>

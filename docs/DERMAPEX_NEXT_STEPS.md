@@ -31,6 +31,8 @@ Diseño: `docs/coamo/SUPABASE_DERMAPEX_COAG_ARCHITECTURE.md` (Codex, 2026-10-07;
 ## 1. Modelo de datos definitivo
 
 - ✅ Hecho (fase 2): migraciones del núcleo en `supabase/migrations/` (centros y pertenencias, RLS por centro con roles investigador/coordinación, pacientes seudonimizados, auditoría ampliada, Storage, `med_catalog_*`) y pruebas automatizadas de RLS (`scripts/test-db.sh`, CI). **Pendiente de aplicar** al proyecto Supabase: ver `DERMAPEX_DATABASE_SETUP.md`.
+- ✅ Preparada (migración `20261028120000`, pruebas `db-tests/90_dermapex_visit_unique_type.sql`): una sola visita no cancelada de cada tipo del calendario (basal, mes 3/6/9/12) por paciente; las extraordinarias pueden repetirse. **Antes de aplicarla** comprobar duplicados en el proyecto (la migración se detiene y los enumera si existen; no corrige datos):
+  `select p.study_code, v.visit_type, count(*) from public.visits v join public.patients p on p.id = v.patient_id where v.visit_type <> 'extra' and v.visit_status is distinct from 'cancelled' group by 1, 2 having count(*) > 1;`
 - Alta de centros participantes y usuarios (coordinación). [P]
 - Tabla clínica por visita que sustituya a `clinical_assessments`. [P]
 - Tipos TypeScript generados desde el esquema; servicios nuevos (p. ej. `clinicalDataService.ts`) usando `utils/payloadNormalization.ts`. [T]
