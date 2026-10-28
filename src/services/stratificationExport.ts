@@ -43,6 +43,8 @@ export type StratificationExportContext = {
   visitIdAnon: (rawVisitId: string) => string;
   centerCode: (rawPatientId: string) => string;
   visitTypeLabel: (visitType: string | null) => string;
+  /** Identificador de la fila; por defecto, correlativo S00001… según el orden de exportación. */
+  stratificationId?: (entry: StratificationRegistryRow) => string;
 };
 
 export function buildStratificationExportRows(
@@ -65,7 +67,7 @@ export function buildStratificationExportRows(
 
   return sorted.map((entry, index) => {
     const row: Record<string, string | number | null> = {
-      stratification_id: `S${String(index + 1).padStart(5, '0')}`,
+      stratification_id: ctx.stratificationId ? ctx.stratificationId(entry) : `S${String(index + 1).padStart(5, '0')}`,
       patient_id: ctx.patientIdAnon(entry.patient_id),
       visit_id: ctx.visitIdAnon(entry.visit_id),
       center_code: ctx.centerCode(entry.patient_id),

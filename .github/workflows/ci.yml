@@ -57,3 +57,63 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dermapex_test
         run: scripts/test-db.sh
+
+  # Exportación de investigación: contra el esquema real y la RLS (PostgreSQL efímero) y ruta SPSS
+  # verificada con GNU PSPP (cada .sps se ejecuta y el .sav resultante se compara celda a celda).
+  export:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dermapex_export
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dermapex_export
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PSPP and pyreadstat
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q pspp postgresql-client
+          python -m pip install pyreadstat pandas
+
+      - name: Schema, migrations and synthetic seed
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -X -f db-tests/00_local_supabase_stubs.sql
+          for m in supabase/migrations/*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -X -f "$m"; done
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -X -f e2e/seed.sql
+
+      - name: Export against real schema and RLS
+        env:
+          EXPORT_DB_URL: ${{ env.DATABASE_URL }}
+        run: npx vitest run tests/researchExport.db.test.ts
+
+      - name: SPSS import validated with PSPP
+        run: |
+          mkdir -p "$RUNNER_TEMP/export-fixture"
+          EXPORT_FIXTURE_DIR="$RUNNER_TEMP/export-fixture" npx vitest run tests/researchExport.test.ts -t "PSPP"
+          python scripts/validate-export-spss.py "$RUNNER_TEMP/export-fixture/standard" "$RUNNER_TEMP/export-fixture/spanish"

@@ -1,7 +1,7 @@
 // Identidad institucional de DERMAPEX.
 // Los campos en null dependen de documentos fuente aún no aportados. No completar con datos inventados.
 // Aprobación ética: dictamen favorable del CEI Sevilla Sur (portal SICEIA) de 27/10/2026. Dictamen, promotor
-// e IP comunicados por el IP el 2026-10-28.
+// e IP comunicados por el IP el 2026-10-28; versiones de protocolo y HIP/CI, el mismo día.
 
 export const PROJECT_IDENTITY = {
   name: 'DERMAPEX',
@@ -17,6 +17,9 @@ export const PROJECT_INSTITUTIONAL_REFERENCE: {
   ethicsApprovalCode: string | null;
   /** Fecha del dictamen favorable (ISO YYYY-MM-DD). */
   ethicsApprovalDate: string | null;
+  /** Versiones aprobadas en el dictamen. */
+  protocolVersion: string | null;
+  informedConsentVersion: string | null;
 } = {
   projectTitle:
     'Mejora de la experiencia del paciente con dermatitis atópica moderada-grave mediante la implementación de un modelo de atención farmacéutica CMO-MAPEX',
@@ -25,6 +28,8 @@ export const PROJECT_INSTITUTIONAL_REFERENCE: {
   ethicsCommittee: 'CEI Sevilla Sur',
   ethicsApprovalCode: 'SICEIA-2026-003487',
   ethicsApprovalDate: '2026-10-27',
+  protocolVersion: '1.0',
+  informedConsentVersion: '1.0',
 };
 
 /** Fecha del dictamen en formato DD/MM/AAAA, o null. */

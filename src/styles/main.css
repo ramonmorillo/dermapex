@@ -1232,3 +1232,5 @@ button.agenda-day.is-selected, button.agenda-day.is-selected:hover:not(:disabled
   .agenda-page .page-header { display: none; }
   .agenda-print-header { justify-content: space-between; border-bottom: 1px solid #000000; padding-bottom: 4px; margin-bottom: 8px; }
 }
+
+.export-format select { width: auto; min-height: 36px; font-size: var(--fs-sm); }
