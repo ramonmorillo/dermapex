@@ -1,5 +1,5 @@
 import { PageHeader } from '../components/ui/PageHeader';
-import { PENDING_PROTOCOL_LABEL, PROJECT_IDENTITY, PROJECT_INSTITUTIONAL_REFERENCE } from '../constants/institutional';
+import { PENDING_PROTOCOL_LABEL, PROJECT_IDENTITY, PROJECT_INSTITUTIONAL_REFERENCE, getEthicsApprovalDateLabel } from '../constants/institutional';
 
 export function ProjectPage() {
   return (
@@ -37,6 +37,7 @@ export function ProjectPage() {
                 <>
                   {PROJECT_INSTITUTIONAL_REFERENCE.ethicsCommittee ? <>{PROJECT_INSTITUTIONAL_REFERENCE.ethicsCommittee}<br /></> : null}
                   <span className="numeric nowrap">Código {PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode}</span>
+                  {getEthicsApprovalDateLabel() ? <><br /><span className="numeric">Dictamen favorable de {getEthicsApprovalDateLabel()}</span></> : null}
                 </>
               ) : (
                 PENDING_PROTOCOL_LABEL

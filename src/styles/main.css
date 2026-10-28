@@ -886,7 +886,7 @@ td.numeric, td.strong { white-space: nowrap; }
 .institutional-block h2 { margin-bottom: var(--sp-3); }
 .institutional-block p { margin-bottom: var(--sp-3); color: var(--iris-text-secondary); }
 .definition-grid { display: grid; gap: var(--sp-4) var(--sp-6); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin: var(--sp-4) 0 0; }
-.definition-grid > div { display: grid; gap: 0.2rem; }
+.definition-grid > div { display: grid; gap: 0.2rem; align-content: start; }
 .definition-grid > .definition-wide { grid-column: 1 / -1; }
 .nowrap { white-space: nowrap; }
 .definition-grid dt { font-size: var(--fs-xs); color: var(--iris-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
