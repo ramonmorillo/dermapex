@@ -17,6 +17,18 @@ Estado de cada funcionalidad:
 
 ---
 
+## 0. Estado de seguimiento (actualizado 2026-10-28)
+
+- **Respuestas del IP:**
+  - los datos actuales de producción son de prueba y se borrarán al iniciar el estudio, con copia previa;
+  - aportará el protocolo, el CRD y los manuales;
+  - Supabase sigue en plan gratuito.
+- **Fase 3 autorizada:** bloque 1 (exportación) y bloque 0 mediante script que ejecuta el IP.
+  - **Hecho y validado:** ver `DERMAPEX_EXPORTACION_VALIDACION.md` (C1, C2, C3, A5-A8, B1 y M3 corregidas; C5 mitigada, pendiente de ejecutar en producción).
+  - Guías: `DERMAPEX_EXPORTACION_GUIA.md` y `DERMAPEX_COPIAS_SEGURIDAD.md`.
+- **Sin autorizar:** bloques 2, 3, 4 y 6. **Bloqueado:** bloque 5 (documentos).
+- **Hallazgo nuevo (media):** en IEXPAC, la respuesta «No aplica» de los ítems 12-15 no se guarda (se omite la clave), así que no se distingue de «no contestado». Se corregirá en el bloque 2.
+
 ## 1. Método y fuentes
 
 | Fuente | Acceso | Uso |
