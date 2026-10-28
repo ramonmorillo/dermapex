@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { VisitStatus, VisitType } from '../constants/enums';
 import { getVisitNumberByType, getVisitTypeSortOrder, normalizeVisitTypeValue } from '../constants/enums';
+import type { AgendaVisit } from '../utils/agenda';
 
 export type Visit = {
   id: string;
@@ -147,4 +148,35 @@ export async function updateVisit(visitId: string, updates: VisitUpdateInput): P
   }
 
   return { data: data ? normalizeVisit(data as Visit) : null, errorMessage: null };
+}
+
+type AgendaVisitRow = Omit<AgendaVisit, 'study_code'> & {
+  patients: { study_code: string | null } | Array<{ study_code: string | null }> | null;
+};
+
+// Todas las visitas visibles (la RLS limita al centro del usuario; coordinación ve todos) con el
+// study_code del paciente. El filtrado por mes/paciente/estado se hace en cliente (utils/agenda).
+export async function listAgendaVisits(): Promise<{ data: AgendaVisit[]; errorMessage: string | null }> {
+  if (!supabase) {
+    return { data: [], errorMessage: 'Supabase no está configurado. No se puede cargar la agenda.' };
+  }
+
+  const { data, error } = await supabase
+    .from('visits')
+    .select('id,patient_id,visit_type,scheduled_date,visit_date,visit_status,notes,patients!inner(study_code)');
+
+  if (error) {
+    return { data: [], errorMessage: extractErrorMessage(error) };
+  }
+
+  const rows = ((data ?? []) as unknown as AgendaVisitRow[]).map(({ patients, ...visit }) => {
+    const patient = Array.isArray(patients) ? patients[0] : patients;
+    return {
+      ...visit,
+      visit_type: normalizeVisitTypeValue(visit.visit_type),
+      study_code: patient?.study_code ?? null,
+    };
+  });
+
+  return { data: rows, errorMessage: null };
 }

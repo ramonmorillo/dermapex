@@ -383,6 +383,9 @@ export function PatientDetailPage() {
                 Estratificar última visita
               </Link>
             ) : null}
+            <Link className="button-link button-secondary" to={`/agenda?patient=${patient.id}&period=all`}>
+              Agenda del paciente
+            </Link>
           </>
         }
       />
