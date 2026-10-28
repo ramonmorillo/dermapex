@@ -23,6 +23,14 @@ export function ProjectPage() {
             <dd>Estudio prospectivo multicéntrico</dd>
           </div>
           <div>
+            <dt>Versiones aprobadas</dt>
+            <dd>
+              Protocolo v{PROJECT_INSTITUTIONAL_REFERENCE.protocolVersion ?? '—'}
+              <br />
+              HIP/CI v{PROJECT_INSTITUTIONAL_REFERENCE.informedConsentVersion ?? '—'}
+            </dd>
+          </div>
+          <div>
             <dt>Promotor</dt>
             <dd>{PROJECT_INSTITUTIONAL_REFERENCE.sponsor ?? PENDING_PROTOCOL_LABEL}</dd>
           </div>
