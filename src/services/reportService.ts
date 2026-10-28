@@ -1,6 +1,6 @@
 import { cmoLevelLabel, toCmoLevel } from '../constants/cmoLevels';
 import { getVisitTypeLabel } from '../constants/enums';
-import { PROJECT_IDENTITY, PROJECT_INSTITUTIONAL_REFERENCE } from '../constants/institutional';
+import { PROJECT_IDENTITY, getEthicsApprovalText } from '../constants/institutional';
 import { normalizeMedicationDisplayName } from '../features/medications/displayFormat';
 import { listVisitMedicationSnapshot } from '../features/medications/medicationsService';
 import type { PatientMedication } from '../features/medications/types';
@@ -170,7 +170,7 @@ function mapActiveMedicationLines(items: PatientMedication[]): string[] {
 function getInstitutionalFooter(): string {
   return [
     `${PROJECT_IDENTITY.name} · ${PROJECT_IDENTITY.subtitle}.`,
-    PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode ? `Código de aprobación CEIm: ${PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode}.` : '',
+    getEthicsApprovalText() ? `Aprobación del comité de ética: ${getEthicsApprovalText()}.` : '',
   ]
     .filter(Boolean)
     .join(' ');

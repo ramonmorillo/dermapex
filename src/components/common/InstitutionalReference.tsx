@@ -1,4 +1,4 @@
-import { PENDING_PROTOCOL_LABEL, PROJECT_INSTITUTIONAL_REFERENCE, PROJECT_SHORT_FOOTER } from '../../constants/institutional';
+import { PENDING_PROTOCOL_LABEL, PROJECT_INSTITUTIONAL_REFERENCE, PROJECT_SHORT_FOOTER, getEthicsApprovalText } from '../../constants/institutional';
 
 type InstitutionalReferenceProps = {
   compact?: boolean;
@@ -22,7 +22,7 @@ export function InstitutionalReference({ compact = false }: InstitutionalReferen
         <br />
         <strong>Investigador principal:</strong> {PROJECT_INSTITUTIONAL_REFERENCE.principalInvestigator ?? PENDING_PROTOCOL_LABEL}
         <br />
-        <strong>Código de aprobación CEIm:</strong> {PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode ?? PENDING_PROTOCOL_LABEL}
+        <strong>Aprobación del comité de ética:</strong> {getEthicsApprovalText() ?? PENDING_PROTOCOL_LABEL}
       </p>
     </section>
   );

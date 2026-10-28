@@ -14,6 +14,10 @@ export function ProjectPage() {
         <h2 id="project-title">{PROJECT_IDENTITY.name}</h2>
         <p className="project-title">{PROJECT_IDENTITY.subtitle}</p>
         <dl className="definition-grid">
+          <div className="definition-wide">
+            <dt>Título de la investigación</dt>
+            <dd>{PROJECT_INSTITUTIONAL_REFERENCE.projectTitle}</dd>
+          </div>
           <div>
             <dt>Diseño</dt>
             <dd>Estudio prospectivo multicéntrico</dd>
@@ -27,8 +31,17 @@ export function ProjectPage() {
             <dd>{PROJECT_INSTITUTIONAL_REFERENCE.principalInvestigator ?? PENDING_PROTOCOL_LABEL}</dd>
           </div>
           <div>
-            <dt>Código de aprobación CEIm</dt>
-            <dd className="numeric">{PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode ?? PENDING_PROTOCOL_LABEL}</dd>
+            <dt>Aprobación del comité de ética</dt>
+            <dd>
+              {PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode ? (
+                <>
+                  {PROJECT_INSTITUTIONAL_REFERENCE.ethicsCommittee ? <>{PROJECT_INSTITUTIONAL_REFERENCE.ethicsCommittee}<br /></> : null}
+                  <span className="numeric nowrap">Código {PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode}</span>
+                </>
+              ) : (
+                PENDING_PROTOCOL_LABEL
+              )}
+            </dd>
           </div>
         </dl>
       </section>
