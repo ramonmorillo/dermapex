@@ -1234,3 +1234,17 @@ button.agenda-day.is-selected, button.agenda-day.is-selected:hover:not(:disabled
 }
 
 .export-format select { width: auto; min-height: 36px; font-size: var(--fs-sm); }
+
+/* Portada pública: niveles del modelo CMO (alineado con COAMO). */
+.hero-actions .button-secondary { background: transparent; }
+.hero-actions .button-secondary:hover { background: rgba(255, 255, 255, .08); }
+.cmo-grid p + p { margin-top: var(--sp-4); }
+.cmo-priority-list { margin: var(--sp-6) 0 0; display: grid; gap: 0; }
+.cmo-priority-list div { padding: var(--sp-3) 0; display: grid; grid-template-columns: 5.5rem 1fr auto; gap: var(--sp-3); align-items: baseline; border-top: 1px solid rgba(255, 255, 255, .17); font-size: var(--fs-sm); }
+.cmo-priority-list dt { color: #fff; font-weight: 650; }
+.cmo-priority-list dd { margin: 0; color: #bdd1d7; }
+.cmo-priority-list dd:last-child { color: #fff; text-align: right; }
+@media (max-width: 640px) {
+  .cmo-priority-list div { grid-template-columns: 1fr; gap: var(--sp-1); }
+  .cmo-priority-list dd:last-child { text-align: left; }
+}
