@@ -1,4 +1,4 @@
--- SOLO PARA PRUEBAS LOCALES. COAMO · cuestionarios V0/VF (migración 20261026120000).
+-- SOLO PARA PRUEBAS LOCALES. COAMO · cuestionarios V0/VF (migración 20261026120000; VERITAS actualizado por 20261103120000).
 -- Se ejecuta tras 60_* (CI1 = investigadora LAFE, CI2 = investigador VHEBRON, CC = coordinación
 -- COAMO, C = coordinación DERMAPEX). Los ejemplos de puntuación coinciden con tests/questionnaires
 -- del frontend COAMO.
@@ -166,12 +166,13 @@ insert into public.coag_questionnaire_administrations (visit_id, instrument_code
   values (:'v0', 'VERITAS_PRN', '{"q1":1,"q2":2,"q5":5,"q24":3}');
 select dermapex_test.expect(
   (select (scores -> 'block_items_answered' ->> 'treatment')::int = 2 and (scores -> 'block_items_answered' ->> 'timing')::int = 1
-      and (scores -> 'block_items_answered' ->> 'communicating')::int = 1 and scores -> 'scores' = 'null'::jsonb
+      and (scores -> 'block_items_answered' ->> 'communicating')::int = 1 and scores -> 'total' = 'null'::jsonb
+      and scores ->> 'scoring_status' = 'incomplete_no_total' and scoring_version = 'coamo-q-2'
      from public.coag_questionnaire_administrations where visit_id = :'v0' and instrument_code = 'VERITAS_PRN'),
-  'VERITAS-PRN: recuento por bloque, sin puntuación (clave no aportada)');
+  'VERITAS-PRN parcial: recuento por bloque, sin total (no se imputa; puntuación completa en 71_*)');
 select dermapex_test.expect_fail(format(
-  $$insert into public.coag_questionnaire_administrations (visit_id, instrument_code, responses) values (%L, 'VERITAS_PRO', '{"q1": 1}')$$, :'v0'),
-  'VERITAS-Pro no admite respuestas sin documento fuente');
+  $$insert into public.coag_questionnaire_administrations (visit_id, instrument_code, responses) values (%L, 'VERITAS_PRO', '{"q1": 6}')$$, :'v0'),
+  'VERITAS-Pro: valor fuera de la escala del documento (1-5) rechazado');
 select dermapex_test.expect_fail(format(
   $$insert into public.coag_questionnaire_administrations (visit_id, instrument_code, status) values (%L, 'VERITAS_PRO', 'not_applicable')$$, :'v0'),
   '«no aplicable» exige motivo');
