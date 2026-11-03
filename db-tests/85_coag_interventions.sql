@@ -1,10 +1,12 @@
--- SOLO PARA PRUEBAS LOCALES. COAMO · actuaciones de AF (migración 20261103150000).
+-- SOLO PARA PRUEBAS LOCALES. COAMO · actuaciones de AF (migraciones 20261103150000 y 20261103160000, Tabla 7).
 -- Se ejecuta tras 80_* (usa una visita con estratificación completada de esa batería y la de 71_* sin estratificar).
 
 \set ON_ERROR_STOP on
 \set QUIET on
 
-select dermapex_test.expect((select count(*) from public.coag_intervention_catalog) = 24, 'catálogo: 24 actuaciones (Tablas 5 y 6)');
+select dermapex_test.expect((select count(*) from public.coag_intervention_catalog) = 31, 'catálogo: 31 actuaciones (Tablas 5, 6 y 7)');
+select dermapex_test.expect((select count(*) from public.coag_intervention_catalog where 1 = any (applies_to_priorities)) = 31, 'Prioridad 1: 31 actuaciones (Tabla 7, acumulativa)');
+select dermapex_test.expect((select count(*) from public.coag_intervention_catalog where source_table = 'Tabla 7' and applies_to_priorities = '{1}') = 7, 'Tabla 7: 7 actuaciones propias de Prioridad 1');
 select dermapex_test.expect((select count(*) from public.coag_intervention_catalog where 3 = any (applies_to_priorities)) = 18, 'Prioridad 3: 18 actuaciones (Tabla 5)');
 select dermapex_test.expect((select count(*) from public.coag_intervention_catalog where 2 = any (applies_to_priorities)) = 24, 'Prioridad 2: 24 actuaciones (Tabla 6, acumulativa)');
 
@@ -21,7 +23,7 @@ select v.id as nv from public.coag_visits v
 
 begin;
 select dermapex_test.as_user('c0a00000-5000-4000-8000-000000000001');
-select dermapex_test.expect(dermapex_test.count_rows('public.coag_intervention_catalog') = 24, 'una investigadora COAMO lee el catálogo');
+select dermapex_test.expect(dermapex_test.count_rows('public.coag_intervention_catalog') = 31, 'una investigadora COAMO lee el catálogo');
 select dermapex_test.expect_fail($$update public.coag_intervention_catalog set action_text = 'x' where code = 'SFT-01'$$, 'el catálogo no se modifica desde la app');
 -- Realizada, de catálogo.
 select dermapex_test.expect(dermapex_test.affected(format(
