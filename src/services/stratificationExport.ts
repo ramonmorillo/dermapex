@@ -71,9 +71,10 @@ export function buildStratificationExportRows(
       patient_id: ctx.patientIdAnon(entry.patient_id),
       visit_id: ctx.visitIdAnon(entry.visit_id),
       center_code: ctx.centerCode(entry.patient_id),
-      study_arm: entry.study_arm ?? '',
+      study_arm: entry.study_arm ?? null,
       visit_type: ctx.visitTypeLabel(entry.visit_type),
-      visit_date: entry.visit_date ?? entry.scheduled_date ?? '',
+      // Ausente = nulo (nunca ''): una visita sin fecha realizada ni programada deja la celda vacía.
+      visit_date: entry.visit_date ?? entry.scheduled_date ?? null,
       fecha_registro: entry.updated_at.slice(0, 10),
       motivo_estratificacion: entry.stratification_reason ? REASON_CODES[entry.stratification_reason] ?? null : null,
       score_total: entry.score,
@@ -85,8 +86,8 @@ export function buildStratificationExportRows(
     row.regla_especial = entry.special_rule_applied === null ? null : entry.special_rule_applied ? 1 : 0;
     row.incompleta = entry.incomplete === null ? null : entry.incomplete ? 1 : 0;
     row.n_desconocidas = entry.unknown_count;
-    row.engine_version = entry.engine_version ?? '';
-    row.model_version = entry.model_version ?? '';
+    row.engine_version = entry.engine_version ?? null;
+    row.model_version = entry.model_version ?? null;
 
     const values = new Map((itemsByScore.get(entry.id) ?? []).map((item) => [item.variable_code, item.raw_value?.value ?? null]));
     for (const code of [AGE_GROUP_CODE, ...CMO_ANSWER_FIELDS.map((f) => f.code), ...CMO_INFORMATIVE_FIELDS.map((f) => f.code)]) {

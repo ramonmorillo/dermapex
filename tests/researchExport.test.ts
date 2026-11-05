@@ -135,6 +135,24 @@ describe('Paquete de exportación (datos sintéticos)', () => {
     }
   });
 
+  it('una estratificación en una visita sin fechas no aborta: celda vacía (nunca \'\') e incidencia «revisar»', async () => {
+    const copy = syntheticData({ patients: 12 });
+    const target = copy.cmoRegistry[0];
+    Object.assign(target, { visit_date: null, scheduled_date: null, study_arm: null, engine_version: null, model_version: null });
+    const { table, bundle } = await exportAll(copy);
+    const row = table('analisis/estratificaciones_cmo.csv').find((r) => r.stratification_id === target.id)!;
+    expect(row.visit_date).toBe('');
+    expect(row.study_arm).toBe('');
+    expect(row.engine_version).toBe('');
+    // En JSON, ausente es null (no texto vacío).
+    const json = JSON.parse(new TextDecoder().decode(readZip(bundle.zip).find((e) => e.path === 'dermapex_export.json')!.data));
+    const jrow = json.datasets.estratificaciones_cmo.rows.find((r: Record<string, unknown>) => r.stratification_id === target.id);
+    expect(jrow.visit_date).toBeNull();
+    expect(jrow.model_version).toBeNull();
+    const issues = table('analisis/incidencias_integridad.csv').filter((i) => i.registro_id === target.id);
+    expect(issues.map((i) => i.gravedad)).toEqual(['revisar']);
+  });
+
   it('LONG tiene una fila por visita y WIDE una por paciente, con variables por visita y cambio IEXPAC', async () => {
     const { table } = await exportAll(data);
     const long = table('analisis/long_visitas.csv');
