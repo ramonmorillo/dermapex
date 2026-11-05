@@ -43,8 +43,8 @@ export function syntheticData(options: { patients: number; seed?: number; interv
   const maybe = <T,>(value: T, pNull = 0.15): T | null => (r() < pNull ? null : value);
 
   const centers: Row[] = [
-    { id: uuid(1, 1), code: 'HUVR', name: 'Centro sintético CMO', study_arm: 'cmo', study_number: 1, is_active: true },
-    { id: uuid(1, 2), code: 'HUVM', name: 'Centro sintético estándar', study_arm: 'standard', study_number: 2, is_active: true },
+    { id: uuid(1, 1), code: 'HUVR', name: 'Centro sintético CMO', study_arm: 'cmo', study_number: 1, is_active: true, created_at: '2026-10-05T10:00:00+00:00', updated_at: '2026-10-05T10:00:00+00:00' },
+    { id: uuid(1, 2), code: 'HUVM', name: 'Centro sintético estándar', study_arm: 'standard', study_number: 2, is_active: true, created_at: '2026-10-05T10:00:00+00:00', updated_at: null },
   ];
   const patients: Row[] = [];
   const consents: Row[] = [];
@@ -173,7 +173,24 @@ export function syntheticData(options: { patients: number; seed?: number; interv
     }
   }
 
-  return { centers, patients, consents, visits, questionnaireMap, questionnaires, interventions, medicationCatalog, patientMedications, medicationEvents, documents, cmoRegistry, cmoItems };
+  const ts = '2026-10-06T10:00:00.000Z';
+  const interventionCatalog: Row[] = [
+    { id: uuid(20, 1), code: 'seg-control-adherencia', label: 'Control de adherencia', domain: 'Motivación', cmo_pillar: 'motivacion', min_level: 3, recommended_levels: [1, 2, 3], category: 'seguimiento', tier: 'basica', linked_need_ids: ['n1', 'n2'], sort_order: 1, source_ref: 'Tabla 5', catalog_version: '1.0', is_active: true, created_at: ts, updated_at: ts },
+    { id: uuid(20, 2), code: 'edu-tecnica-inyeccion', label: TRICKY_TEXTS[0], domain: 'Capacidad', cmo_pillar: 'capacidad', min_level: 1, recommended_levels: [], category: null, tier: null, linked_need_ids: null, sort_order: 2, source_ref: null, catalog_version: '1.0', is_active: false, created_at: ts, updated_at: ts },
+  ];
+  const usualCareCatalog: Row[] = [
+    { id: uuid(21, 1), code: 'af-0', label: 'Validación de la prescripción', category: 'seguimiento', is_no_intervention: false, catalog_version: '1.0', sort_order: 1, is_active: true, created_at: ts, updated_at: ts },
+    { id: uuid(21, 2), code: 'sin-intervencion', label: 'Sin intervención', category: null, is_no_intervention: true, catalog_version: '1.0', sort_order: 9, is_active: true, created_at: ts, updated_at: ts },
+  ];
+  const cmoVariableCatalog: Row[] = [
+    { id: uuid(22, 1), variable_code: AGE_GROUP_CODE, label: 'Edad', domain: 'demografica', block: 'demografica', sort_order: 1, value_type: 'derived_age', options: [{ value: 'adulto', points: 0 }], is_scored: true, cmo_dimension: null, special_rule: null, definition: null, criteria: 'Línea 1\nLínea 2', model_version: 'cmo-derma-model-1.0.0+src.227e444', is_active: true, created_at: ts, updated_at: ts },
+    { id: uuid(22, 2), variable_code: 'embarazo', label: 'Embarazo', domain: 'especifica', block: 'especifica', sort_order: 2, value_type: 'boolean', options: [], is_scored: true, cmo_dimension: 'oportunidad', special_rule: 'pregnancy_trigger', definition: 'Definición; con "comillas"', criteria: null, model_version: 'cmo-derma-model-1.0.0+src.227e444', is_active: true, created_at: ts, updated_at: ts },
+  ];
+  const cmoModelVersions: Row[] = [
+    { model_version: 'cmo-derma-model-1.0.0+src.227e444', engine_version: 'cmo-dermapex-1.0.0+src.227e444', subtype: 'dermatologica', source_repository: 'sintetico/repo', source_commit: '0'.repeat(40), level1_min_score: 31, level2_min_score: 18.5, special_rule_codes: ['pregnancy_trigger'], status: 'active', notes: null, created_at: ts, updated_at: ts },
+  ];
+
+  return { centers, patients, consents, visits, questionnaireMap, questionnaires, interventions, medicationCatalog, patientMedications, medicationEvents, documents, cmoRegistry, cmoItems, interventionCatalog, usualCareCatalog, cmoVariableCatalog, cmoModelVersions };
 }
 
 export type MemorySourceOptions = {

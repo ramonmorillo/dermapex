@@ -157,6 +157,9 @@ export function AppShell() {
             <NavLink to="/agenda" className={navLinkClass}>
               Agenda
             </NavLink>
+            <NavLink to="/export" className={navLinkClass}>
+              Exportación
+            </NavLink>
             <NavLink to="/project" className={navLinkClass}>
               Proyecto
             </NavLink>

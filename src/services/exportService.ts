@@ -3,7 +3,7 @@
 // manifiesto y verificación antes de entregar). Este módulo solo lo conecta con Supabase y el navegador.
 
 import { supabase } from '../lib/supabase';
-import { runResearchExport } from './researchExport/bundle';
+import { runResearchExport, type ExportManifest } from './researchExport/bundle';
 import { SPANISH_EXCEL_DIALECT, STANDARD_DIALECT } from './researchExport/csv';
 import { supabaseDataSource } from './researchExport/reader';
 
@@ -16,6 +16,8 @@ type ExportOutcome = {
   errorMessage: string | null;
   generatedFiles: string[];
   summary?: string;
+  /** Manifiesto del paquete descargado: alcance, conciliación por tabla y conjuntos (se muestra en pantalla). */
+  manifest?: ExportManifest;
 };
 
 const USUAL_CARE_NO_INTERVENTION_CODE = 'sin-intervencion';
@@ -66,6 +68,7 @@ export async function exportResearchDataBundle(format: ExportFormat = 'standard'
       success: true,
       errorMessage: null,
       generatedFiles: [bundle.fileName],
+      manifest: m,
       summary: `${bundle.fileName}: ${m.scope.patients} pacientes, ${m.scope.visits} visitas, ${m.source_tables.length} tablas conciliadas con la base de datos y ${m.files.length} ficheros verificados.${issues > 0 ? ` ${issues} incidencias de integridad (ver analisis/incidencias_integridad.csv).` : ''}${m.warnings.length > 0 ? ` Avisos: ${m.warnings.join(' ')}` : ''}`,
     };
   } catch (error) {

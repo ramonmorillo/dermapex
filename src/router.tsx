@@ -58,6 +58,7 @@ export const router = createHashRouter([
       { path: '/visits/:visitId/questionnaires', element: <VisitQuestionnairesPage /> },
       { path: '/visits/:visitId/documents', element: <VisitDocumentsPage /> },
       { path: '/visits/:visitId/reports', element: <VisitReportsPage /> },
+      { path: '/export', lazy: async () => ({ Component: (await import('./pages/ResearchExportPage')).ResearchExportPage }) },
     ],
   },
   {

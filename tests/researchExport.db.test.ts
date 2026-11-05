@@ -12,6 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 import { runResearchExport } from '../src/services/researchExport/bundle';
+import { EXCLUDED_COLUMNS, TABLE_REQUESTS } from '../src/services/researchExport/datasets';
 import { STANDARD_DIALECT } from '../src/services/researchExport/csv';
 import type { DataSource } from '../src/services/researchExport/reader';
 import { readZip } from '../src/services/researchExport/zip';
@@ -66,6 +67,30 @@ describe.skipIf(!DB)('Exportación contra el esquema real y la RLS (PostgreSQL l
     psql(SEED);
     asUser(CMO_USER, `select public.save_cmo_stratification('a1000000-e2e0-4000-8000-000000000001', 'baseline', 'cmo-derma-model-1.0.0+src.227e444', 'cmo-dermapex-1.0.0+src.227e444',
       (select jsonb_object_agg(variable_code, case when value_type = 'select' then 'ninguna' else 'no' end) from public.cmo_variable_catalog where value_type <> 'derived_age'), 2, 3) \\g /dev/null`);
+  });
+
+  it('ninguna columna de las tablas DERMAPEX queda fuera sin una exclusión documentada', () => {
+    const requested = new Map<string, string[]>(Object.values(TABLE_REQUESTS).map((r) => [r.table, r.columns.split(',')]));
+    const excludedText = EXCLUDED_COLUMNS.map((e) => `${e.table} ${e.columns}`).join(' ');
+    const globallyExcluded = EXCLUDED_COLUMNS.find((e) => e.table === '(todas)')!.columns.split(',').map((x) => x.trim());
+    const wholeTableExcluded = (t: string) => EXCLUDED_COLUMNS.some((e) => e.columns === '(tablas completas)' || e.columns === '(tabla completa)' ? e.table.split(',').map((x) => x.trim()).includes(t) : false);
+    const lines = psql(`select c.relname || '|' || string_agg(a.attname, ',' order by a.attnum) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+      where n.nspname = 'public' and c.relkind = 'r' and c.relname not like 'coag%' group by c.relname order by 1;`).split('\n');
+    const missing: string[] = [];
+    for (const line of lines) {
+      const [table, cols] = line.split('|');
+      if (wholeTableExcluded(table)) continue;
+      // cmo_scores se exporta a través de la vista enmascarada cmo_stratification_registry.
+      const exported = requested.get(table) ?? (table === 'cmo_scores' ? requested.get('cmo_stratification_registry') : undefined);
+      if (!exported) { missing.push(`${table} (tabla)`); continue; }
+      for (const col of cols.split(',')) {
+        if (exported.includes(col) || globallyExcluded.includes(col)) continue;
+        if (new RegExp(`\\b${table}\\b[^]*\\b${col}\\b`).test(excludedText)) continue;
+        missing.push(`${table}.${col}`);
+      }
+    }
+    expect(missing).toEqual([]);
   });
 
   it('coordinación exporta todos los centros y los recuentos cuadran con la base de datos', { timeout: 120000 }, async () => {

@@ -1,13 +1,14 @@
 # DERMAPEX · Guía de la exportación de datos para investigación
 
-Para el equipo investigador y los responsables del análisis estadístico. Formato `dermapex-export-2.0`.
+Para el equipo investigador y los responsables del análisis estadístico. Formato `dermapex-export-2.1` (2.0 + catálogos de referencia y metadatos del estudio en el manifiesto).
 
 ## 1. Cómo exportar
 
-1. **Dashboard** → elija el formato de los CSV:
+1. Menú **Exportación** (`#/export`; el botón «Exportar datos» del Dashboard lleva a la misma pantalla) → elija el formato de los CSV:
    - **CSV estándar** (separador coma, decimal punto): para SPSS, R, Stata o Python. **Recomendado.**
    - **CSV Excel España** (separador punto y coma, decimal coma): para abrir el CSV con doble clic en un Excel configurado en español.
-2. Pulse **Exportar datos**. Se descarga **un único ZIP**: `dermapex_export_<fecha>_<hora>.zip`.
+2. Pulse **Exportar y descargar**. Se descarga **un único ZIP**: `dermapex_export_<fecha>_<hora>.zip`.
+3. Tras la descarga, la pantalla muestra el **control de integridad**: por cada tabla de origen, registros accesibles en la BD frente a exportados, páginas leídas y estado; el ámbito (centros, pacientes, visitas) y los conjuntos generados. Las incidencias de integridad y los avisos aparecen en un aviso destacado.
 
 **Alcance:** se exporta todo lo que su usuario puede ver. Un investigador ve su centro; coordinación ve todos los centros. El alcance real (centros incluidos) consta en `manifest.json`.
 
@@ -29,7 +30,7 @@ Para el equipo investigador y los responsables del análisis estadístico. Forma
 | `analisis/estratificaciones_cmo` | Estratificaciones CMO codificadas | estratificación |
 | `analisis/medicacion_por_visita` | Tratamientos vigentes en la fecha de cada visita | tratamiento × visita |
 | `analisis/incidencias_integridad` | Errores e inconsistencias detectados en la extracción | incidencia |
-| `raw/*` | **Cada tabla tal como está almacenada** (13 tablas o vistas) | registro |
+| `raw/*` | **Cada tabla tal como está almacenada** (13 tablas o vistas clínicas + 4 catálogos de referencia: `catalogo_intervenciones_cmo`, `catalogo_atencion_estandar`, `catalogo_variables_cmo`, `cmo_versiones_modelo`) | registro |
 | `*.sps` | Sintaxis SPSS de importación, junto a cada CSV | — |
 | `*_spss.csv` | Copia para SPSS cuando hay textos con saltos de línea (ver §4) | — |
 | `dermapex_export.xlsx` | Todas las tablas en hojas, más diccionario y metadatos | — |
@@ -99,6 +100,12 @@ certutil -hashfile <fichero> SHA256
 | `patient_medications.selected_source_payload` | Copia técnica del catálogo, no dato clínico |
 | Nombre y ruta de los ficheros PDF | Pueden contener identificadores directos del paciente. Los PDF no se exportan |
 | `cmo_scores.factors` y `recommendations` | La estratificación se exporta desde la vista que aplica el enmascaramiento por cohorte |
+| `profiles`, `center_memberships`, `audit_log`, `patient_code_counters` | Datos de profesionales o técnicos; no son datos del estudio |
+| `med_catalog_*` | Catálogo normalizado de CIMA; cada tratamiento conserva sus claves y la etiqueta seleccionada |
+| `created_at`/`updated_at` de `medication_catalog` y `questionnaire_measurement_map` | Marcas técnicas de carga del catálogo |
+| `coag_*` | Tablas de COAMO (mismo proyecto Supabase), con su propia exportación |
+
+Control automático: `tests/researchExport.db.test.ts` falla si alguna columna de una tabla DERMAPEX no se exporta ni figura en esta lista (evita pérdidas silenciosas cuando se añadan campos).
 
 La lista está también en `manifest.json → excluded_columns`.
 
