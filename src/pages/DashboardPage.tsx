@@ -13,17 +13,11 @@ import { TrendDelta } from '../components/ui/TrendDelta';
 import { CMO_LEVEL_META } from '../constants/cmoLevels';
 import { getVisitTypeLabel } from '../constants/enums';
 import { loadDashboardData, type DashboardData } from '../services/dashboardService';
-import { exportResearchDataBundle, type ExportFormat } from '../services/exportService';
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
-  const [exportMessage, setExportMessage] = useState<string | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [exportFormat, setExportFormat] = useState<ExportFormat>('standard');
-  const [exportProgress, setExportProgress] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -41,23 +35,6 @@ export function DashboardPage() {
 
   const pct = (value: number) => `${value.toFixed(1)}%`;
 
-  const handleExportData = async () => {
-    setExporting(true);
-    setExportMessage(null);
-    setExportError(null);
-
-    const result = await exportResearchDataBundle(exportFormat, setExportProgress);
-    setExportProgress(null);
-
-    if (!result.success) {
-      setExportError(result.errorMessage ?? 'No se pudieron exportar los datos.');
-      setExporting(false);
-      return;
-    }
-
-    setExportMessage(`Exportación completada y verificada. ${result.summary ?? result.generatedFiles.join(', ')}`);
-    setExporting(false);
-  };
 
   const { cohort, followup, clinicalEvolution, pharmaceuticalActivity } = data.pro;
   const stratifiedPatients = data.patientsByPriority[1] + data.patientsByPriority[2] + data.patientsByPriority[3];
@@ -91,33 +68,18 @@ export function DashboardPage() {
         title="Dashboard clínico"
         description="Panel operativo del estudio. Indicadores heredados de la infraestructura CMO, pendientes de validación para DERMAPEX."
         actions={
-          <>
-          <label className="export-format">
-            <span className="visually-hidden">Formato de los CSV</span>
-            <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value as ExportFormat)} disabled={exporting}>
-              <option value="standard">CSV estándar (coma; decimal punto) · SPSS, R, Stata</option>
-              <option value="spanish_excel">CSV Excel España (punto y coma; decimal coma)</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={handleExportData}
-            disabled={exporting}
-            title="Descarga un ZIP verificado: tablas completas, formatos largo y ancho, respuestas por ítem, diccionario, CSV + sintaxis SPSS (.sps), Excel, JSON y manifiesto con recuentos y huellas."
+          <Link
+            className="button-link button-secondary"
+            to="/export"
+            title="Paquete verificado: tablas completas, formatos largo y ancho, respuestas por ítem, diccionario, CSV + sintaxis SPSS (.sps), Excel, JSON y manifiesto con recuentos y huellas."
           >
             <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
               <path d="M8 2v8m0 0L5 7m3 3 3-3M3 12.5h10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            {exporting ? 'Exportando...' : 'Exportar datos'}
-          </button>
-          </>
+            Exportar datos
+          </Link>
         }
-      >
-        {exportProgress ? <Notice tone="info">{exportProgress}</Notice> : null}
-        {exportMessage ? <Notice tone="success">{exportMessage}</Notice> : null}
-        {exportError ? <Notice tone="danger">{exportError}</Notice> : null}
-      </PageHeader>
+      />
 
       <Notice tone="info">
         Fase de migración: los indicadores de este panel proceden de la infraestructura genérica CMO heredada de IRIS

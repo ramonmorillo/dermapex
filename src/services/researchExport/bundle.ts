@@ -9,6 +9,8 @@
 
 import * as XLSX from 'xlsx';
 
+import { CMO_MODEL_VERSION } from '../../constants/cmoDermapexModel';
+import { PROJECT_INSTITUTIONAL_REFERENCE } from '../../constants/institutional';
 import { parseCsv, writeCsv, type CsvCell, type CsvDialect } from './csv';
 import { buildDatasets, EXCLUDED_COLUMNS, QUESTIONNAIRE_SCORING_VERSION, TABLE_REQUESTS, type RawData, type TableKey } from './datasets';
 import { ExportIntegrityError, readWholeTable, type DataSource, type TableResult } from './reader';
@@ -16,7 +18,7 @@ import { assertValidColumnNames, MISSING_CODE_NOTE, serializeCell, type ColumnSp
 import { buildSpsSyntax, escapeForSpss, spssFormatFor, type SpssFormat } from './spss';
 import { buildZip, readZip, type ZipEntry } from './zip';
 
-export const EXPORT_FORMAT_VERSION = 'dermapex-export-2.0';
+export const EXPORT_FORMAT_VERSION = 'dermapex-export-2.1';
 const XLSX_CELL_LIMIT = 32767;
 
 export type ExportOptions = {
@@ -38,6 +40,9 @@ export type ExportManifest = {
   generated_by_user_id: string | null;
   app_version: string;
   questionnaire_scoring_version: string;
+  /** Versión del modelo CMO activa en la aplicación al exportar (cada estratificación guarda la suya en model_version). */
+  stratification_model_version: string;
+  study: { title: string; sponsor: string | null; ethics_committee: string | null; ethics_registry: string | null; ethics_approval_date: string | null; protocol_version: string | null };
   csv: { encoding: 'UTF-8'; bom: boolean; delimiter: string; decimal: string; line_ending: 'CRLF'; quoting: 'RFC 4180' };
   scope: { description: string; centers: string[]; patients: number; visits: number };
   source_tables: ManifestTable[];
@@ -223,6 +228,7 @@ CONTENIDO
   manifest.json                 Alcance, recuentos por tabla (BD frente a fichero), huellas SHA-256 y verificaciones.
   diccionario_variables.csv     Diccionario de datos de todas las variables exportadas.
   raw/*.csv (+ .sps)            Cada tabla tal como está almacenada (reconstrucción y auditoría).
+  raw/catalogo_*, cmo_versiones_modelo  Catálogos de referencia para interpretar los códigos (intervenciones, variables y umbrales CMO).
   analisis/long_visitas         Una fila por paciente y visita.
   analisis/wide_pacientes       Una fila por paciente; sufijos _v0 (basal), _v3, _v6, _v9, _v12 (meses).
   analisis/cuestionarios_items  Una fila por ítem respondido (respuestas individuales).
@@ -242,8 +248,16 @@ SPSS
 CSV
   UTF-8${m.csv.bom ? ' con BOM' : ''}, separador «${m.csv.delimiter}», decimal «${m.csv.decimal}», comillas RFC 4180. Los saltos de línea de los textos se conservan entre comillas.
 
+ESTUDIO
+  ${m.study.title}
+  Promotor: ${m.study.sponsor ?? '—'} · ${m.study.ethics_committee ?? '—'} · registro ${m.study.ethics_registry ?? '—'} · dictamen ${m.study.ethics_approval_date ?? '—'} · protocolo v${m.study.protocol_version ?? '—'}
+
 AVISO
   Puntuaciones de cuestionarios: ${m.questionnaire_scoring_version}.
+  Modelo CMO activo en la aplicación: ${m.stratification_model_version} (cada estratificación conserva su model_version; umbrales en raw/cmo_versiones_modelo).
+  Las fechas exactas y el centro pueden actuar como cuasiidentificadores.
+  Contiene TEXTO LIBRE (notas de visitas, consentimientos, intervenciones, tratamientos y documentos; motivo de visita extraordinaria):
+  revíselo y elimine cualquier dato identificativo antes de compartir el paquete fuera del equipo investigador.
   Datos seudonimizados de un estudio clínico: custodia según el protocolo y la normativa de protección de datos.
 `;
 
@@ -313,6 +327,15 @@ export async function buildExportBundle(raw: RawData, results: TableResult<unkno
     generated_by_user_id: options.userId,
     app_version: options.appVersion,
     questionnaire_scoring_version: QUESTIONNAIRE_SCORING_VERSION,
+    stratification_model_version: CMO_MODEL_VERSION,
+    study: {
+      title: PROJECT_INSTITUTIONAL_REFERENCE.projectTitle,
+      sponsor: PROJECT_INSTITUTIONAL_REFERENCE.sponsor,
+      ethics_committee: PROJECT_INSTITUTIONAL_REFERENCE.ethicsCommittee,
+      ethics_registry: PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalCode,
+      ethics_approval_date: PROJECT_INSTITUTIONAL_REFERENCE.ethicsApprovalDate,
+      protocol_version: PROJECT_INSTITUTIONAL_REFERENCE.protocolVersion,
+    },
     csv: { encoding: 'UTF-8', bom: options.bom, delimiter: options.dialect.delimiter, decimal: options.dialect.decimal, line_ending: 'CRLF', quoting: 'RFC 4180' },
     scope: {
       description: 'Todos los registros visibles para el usuario que exporta según los permisos de la base de datos (RLS): su(s) centro(s); coordinación, todos los centros.',
@@ -337,6 +360,9 @@ export async function buildExportBundle(raw: RawData, results: TableResult<unkno
     ['generated_at', manifest.generated_at],
     ['app_version', manifest.app_version],
     ['questionnaire_scoring_version', manifest.questionnaire_scoring_version],
+    ['stratification_model_version', manifest.stratification_model_version],
+    ['estudio', manifest.study.title],
+    ['ceim_registro', manifest.study.ethics_registry ?? ''],
     ['centros', centers.join(', ')],
     ['pacientes', String(manifest.scope.patients)],
     ['visitas', String(manifest.scope.visits)],

@@ -95,6 +95,8 @@ describe('Paquete de exportación (datos sintéticos)', () => {
         ['raw/cuestionarios_registros.csv', 'questionnaires'], ['raw/medicacion_paciente.csv', 'patientMedications'],
         ['raw/medicacion_eventos.csv', 'medicationEvents'], ['raw/consentimientos.csv', 'consents'], ['raw/documentos_visita.csv', 'documents'],
         ['raw/cmo_estratificaciones_registro.csv', 'cmoRegistry'], ['raw/cmo_estratificaciones_items.csv', 'cmoItems'], ['raw/centros.csv', 'centers'],
+        ['raw/catalogo_intervenciones_cmo.csv', 'interventionCatalog'], ['raw/catalogo_atencion_estandar.csv', 'usualCareCatalog'],
+        ['raw/catalogo_variables_cmo.csv', 'cmoVariableCatalog'],
       ];
       for (const [path, key] of map) {
         const rows = table(path);
@@ -112,6 +114,24 @@ describe('Paquete de exportación (datos sintéticos)', () => {
       }
       // Manifiesto: recuentos BD = exportados en todas las tablas.
       for (const t of bundle.manifest.source_tables) expect(t.exported_rows, t.table).toBe(t.db_count);
+    }
+  });
+
+  it('exporta los catálogos de referencia y los metadatos del estudio', async () => {
+    const { table, bundle } = await exportAll(data);
+    const versions = table('raw/cmo_versiones_modelo.csv');
+    expect(versions).toHaveLength(data.cmoModelVersions.length);
+    expect(versions[0].level2_min_score).toBe('18.5');
+    expect(JSON.parse(versions[0].special_rule_codes)).toEqual(['pregnancy_trigger']);
+    expect(versions[0].notes).toBe('');
+    // Un array vacío no es un nulo.
+    const catalog = table('raw/catalogo_intervenciones_cmo.csv');
+    expect(catalog.find((r) => r.code === 'edu-tecnica-inyeccion')!.recommended_levels).toBe('[]');
+    expect(catalog.find((r) => r.code === 'edu-tecnica-inyeccion')!.linked_need_ids).toBe('');
+    expect(bundle.manifest.study.ethics_registry).toBe('SICEIA-2026-003487');
+    expect(bundle.manifest.stratification_model_version).toMatch(/^cmo-derma-model-/);
+    for (const t of ['intervention_catalog', 'usual_care_activity_catalog', 'cmo_variable_catalog', 'cmo_model_versions']) {
+      expect(bundle.manifest.source_tables.find((x) => x.table === t)?.ok, t).toBe(true);
     }
   });
 

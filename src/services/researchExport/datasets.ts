@@ -24,7 +24,7 @@ const USUAL_CARE_NO_INTERVENTION_CODE = 'sin-intervencion';
 // ── Tablas a leer ──────────────────────────────────────────────────────────
 
 export const TABLE_REQUESTS = {
-  centers: { table: 'centers', columns: 'id,code,name,study_arm,study_number,is_active', orderBy: 'id' },
+  centers: { table: 'centers', columns: 'id,code,name,study_arm,study_number,is_active,created_at,updated_at', orderBy: 'id' },
   patients: {
     table: 'patients',
     columns: 'id,study_code,center_id,center_seq,inclusion_date,screening_date,age_at_inclusion,sex,consent_signed,created_at,updated_at',
@@ -69,6 +69,28 @@ export const TABLE_REQUESTS = {
     columns: 'id,cmo_score_id,visit_id,variable_code,label,block,sort_order,is_scored,model_version,raw_value,item_score',
     orderBy: 'id',
   },
+  // Catálogos de referencia (sin datos de pacientes): permiten interpretar los códigos registrados
+  // (catalog_code, usual_care_code, variable_code, model_version) y reproducir la estratificación.
+  interventionCatalog: {
+    table: 'intervention_catalog',
+    columns: 'id,code,label,domain,cmo_pillar,min_level,recommended_levels,category,tier,linked_need_ids,sort_order,source_ref,catalog_version,is_active,created_at,updated_at',
+    orderBy: 'id',
+  },
+  usualCareCatalog: {
+    table: 'usual_care_activity_catalog',
+    columns: 'id,code,label,category,is_no_intervention,catalog_version,sort_order,is_active,created_at,updated_at',
+    orderBy: 'id',
+  },
+  cmoVariableCatalog: {
+    table: 'cmo_variable_catalog',
+    columns: 'id,variable_code,label,domain,block,sort_order,value_type,options,is_scored,cmo_dimension,special_rule,definition,criteria,model_version,is_active,created_at,updated_at',
+    orderBy: 'id',
+  },
+  cmoModelVersions: {
+    table: 'cmo_model_versions',
+    columns: 'model_version,engine_version,subtype,source_repository,source_commit,level1_min_score,level2_min_score,special_rule_codes,status,notes,created_at,updated_at',
+    orderBy: 'model_version',
+  },
 } satisfies Record<string, TableRequest>;
 
 export type TableKey = keyof typeof TABLE_REQUESTS;
@@ -79,6 +101,13 @@ export const EXCLUDED_COLUMNS: Array<{ table: string; columns: string; reason: s
   { table: 'patient_medications', columns: 'selected_source_payload', reason: 'Copia técnica del registro de CIMA/catálogo; no es dato clínico.' },
   { table: 'visit_documents', columns: 'original_file_name, stored_file_path', reason: 'El nombre de fichero puede contener identificadores directos del paciente. Los PDF no se exportan.' },
   { table: 'cmo_scores', columns: 'factors, recommendations', reason: 'Se exporta la estratificación desde la vista enmascarada por cohorte (cmo_stratification_registry).' },
+  { table: 'medication_catalog, questionnaire_measurement_map', columns: 'created_at, updated_at', reason: 'Marcas técnicas de carga del catálogo; no son datos del estudio.' },
+  { table: 'cmo_score_item_results', columns: '(tabla completa)', reason: 'Se exporta desde la vista enmascarada por cohorte cmo_stratification_item_values (mismas filas y valores).' },
+  { table: 'profiles, center_memberships', columns: '(tablas completas)', reason: 'Datos de los profesionales (nombre, rol, centros asignados): no son datos del estudio.' },
+  { table: 'audit_log', columns: '(tabla completa)', reason: 'Registro técnico de cambios con copias completas de filas e identificadores de profesionales; se conserva en la base de datos y en las copias de seguridad.' },
+  { table: 'patient_code_counters', columns: '(tabla completa)', reason: 'Contador técnico para asignar study_code; no es un dato del estudio.' },
+  { table: 'med_catalog_concepts, med_catalog_products, med_catalog_ingredients, med_catalog_concept_ingredients, med_catalog_aliases', columns: '(tablas completas)', reason: 'Catálogo normalizado de medicamentos (copia de CIMA), no es un dato del estudio. Cada tratamiento conserva sus claves (catalog_concept_id, catalog_product_id) y la etiqueta seleccionada (selected_label_snapshot).' },
+  { table: 'coag_* (todas)', columns: '(tablas completas)', reason: 'Pertenecen al estudio COAMO, alojado en el mismo proyecto de Supabase; tienen su propia exportación.' },
 ];
 
 type Row = Record<string, unknown>;
@@ -267,6 +296,8 @@ export function buildDatasets(raw: RawData, todayIso: string): BuildResult {
         c('study_arm', 'Cohorte del centro', 'string', 'centers.study_arm', { values: ARM_VALUES }),
         c('study_number', 'Número de centro en el código de paciente', 'integer', 'centers.study_number'),
         c('is_active', 'Centro activo', 'boolean', 'centers.is_active', { values: YES_NO }),
+        createdAt('centers'),
+        updatedAt('centers'),
       ],
       rows: raw.centers,
     },
@@ -476,6 +507,85 @@ export function buildDatasets(raw: RawData, todayIso: string): BuildResult {
         c('item_score', 'Puntos de la variable', 'decimal', 'cmo_stratification_item_values.item_score'),
       ],
       rows: raw.cmoItems,
+    },
+    {
+      id: 'catalogo_intervenciones_cmo', folder: 'raw', title: 'Catálogo de intervenciones del modelo CMO', grain: 'Una intervención del catálogo (por versión)', key: ['id'],
+      columns: [
+        c('id', 'Identificador del elemento (UUID)', 'string', 'intervention_catalog.id', { definition: 'Clave referenciada por interventions.catalog_item_id.' }),
+        c('code', 'Código de la intervención', 'string', 'intervention_catalog.code', { definition: 'Clave referenciada por interventions.catalog_code.' }),
+        c('label', 'Intervención', 'string', 'intervention_catalog.label'),
+        c('domain', 'Dominio', 'string', 'intervention_catalog.domain'),
+        c('cmo_pillar', 'Pilar CMO', 'string', 'intervention_catalog.cmo_pillar'),
+        c('min_level', 'Nivel CMO mínimo', 'integer', 'intervention_catalog.min_level'),
+        c('recommended_levels', 'Niveles CMO en que se recomienda (JSON)', 'json', 'intervention_catalog.recommended_levels'),
+        c('category', 'Categoría', 'string', 'intervention_catalog.category', { values: { seguimiento: 'seguimiento', educacion: 'educacion', coordinacion: 'coordinacion' }, notes: 'Valores de la restricción CHECK; sin etiqueta clínica documentada.' }),
+        c('tier', 'Nivel de la intervención', 'string', 'intervention_catalog.tier', { values: { basica: 'basica', avanzada: 'avanzada', centro: 'centro' }, notes: 'Valores de la restricción CHECK; sin etiqueta clínica documentada.' }),
+        c('linked_need_ids', 'Necesidades vinculadas (JSON)', 'json', 'intervention_catalog.linked_need_ids'),
+        c('sort_order', 'Orden', 'integer', 'intervention_catalog.sort_order'),
+        c('source_ref', 'Referencia de origen', 'string', 'intervention_catalog.source_ref'),
+        c('catalog_version', 'Versión del catálogo', 'string', 'intervention_catalog.catalog_version'),
+        c('is_active', 'Activo', 'boolean', 'intervention_catalog.is_active', { values: YES_NO }),
+        createdAt('intervention_catalog'),
+        updatedAt('intervention_catalog'),
+      ],
+      rows: raw.interventionCatalog,
+    },
+    {
+      id: 'catalogo_atencion_estandar', folder: 'raw', title: 'Catálogo de actividades de atención farmacéutica estándar', grain: 'Una actividad del catálogo (por versión)', key: ['id'],
+      columns: [
+        c('id', 'Identificador de la actividad (UUID)', 'string', 'usual_care_activity_catalog.id', { definition: 'Clave referenciada por interventions.usual_care_item_id.' }),
+        c('code', 'Código de la actividad', 'string', 'usual_care_activity_catalog.code', { definition: 'Clave referenciada por interventions.usual_care_code.' }),
+        c('label', 'Actividad', 'string', 'usual_care_activity_catalog.label'),
+        c('category', 'Categoría', 'string', 'usual_care_activity_catalog.category', { values: { seguimiento: 'seguimiento', educacion: 'educacion', coordinacion: 'coordinacion' }, notes: 'Valores de la restricción CHECK; sin etiqueta clínica documentada.' }),
+        c('is_no_intervention', 'Marcador «Sin intervención»', 'boolean', 'usual_care_activity_catalog.is_no_intervention', { values: YES_NO }),
+        c('catalog_version', 'Versión del catálogo', 'string', 'usual_care_activity_catalog.catalog_version'),
+        c('sort_order', 'Orden', 'integer', 'usual_care_activity_catalog.sort_order'),
+        c('is_active', 'Activa', 'boolean', 'usual_care_activity_catalog.is_active', { values: YES_NO }),
+        createdAt('usual_care_activity_catalog'),
+        updatedAt('usual_care_activity_catalog'),
+      ],
+      rows: raw.usualCareCatalog,
+    },
+    {
+      id: 'catalogo_variables_cmo', folder: 'raw', title: 'Catálogo de variables del modelo de estratificación CMO', grain: 'Una variable del modelo (por versión)', key: ['id'],
+      columns: [
+        c('id', 'Identificador de la variable (UUID)', 'string', 'cmo_variable_catalog.id'),
+        c('variable_code', 'Código de la variable', 'string', 'cmo_variable_catalog.variable_code', { definition: 'Clave referenciada por cmo_estratificaciones_items.variable_code.' }),
+        c('label', 'Variable', 'string', 'cmo_variable_catalog.label'),
+        c('domain', 'Dominio', 'string', 'cmo_variable_catalog.domain'),
+        c('block', 'Bloque', 'string', 'cmo_variable_catalog.block', { values: { demografica: 'demografica', sociosanitaria: 'sociosanitaria', clinica: 'clinica', farmacoterapeutica: 'farmacoterapeutica', especifica: 'especifica', informativa: 'informativa' } }),
+        c('sort_order', 'Orden', 'integer', 'cmo_variable_catalog.sort_order'),
+        c('value_type', 'Tipo de respuesta', 'string', 'cmo_variable_catalog.value_type', { values: { boolean: 'boolean', select: 'select', derived_age: 'derived_age' } }),
+        c('options', 'Opciones de respuesta y puntos (JSON)', 'json', 'cmo_variable_catalog.options'),
+        c('is_scored', 'Puntúa', 'boolean', 'cmo_variable_catalog.is_scored', { values: YES_NO }),
+        c('cmo_dimension', 'Dimensión CMO', 'string', 'cmo_variable_catalog.cmo_dimension', { values: { capacidad: 'capacidad', motivacion: 'motivacion', oportunidad: 'oportunidad' } }),
+        c('special_rule', 'Regla especial', 'string', 'cmo_variable_catalog.special_rule', { values: { pregnancy_trigger: 'pregnancy_trigger' } }),
+        c('definition', 'Definición', 'string', 'cmo_variable_catalog.definition'),
+        c('criteria', 'Criterio de cumplimiento', 'string', 'cmo_variable_catalog.criteria'),
+        c('model_version', 'Versión del modelo', 'string', 'cmo_variable_catalog.model_version'),
+        c('is_active', 'Activa', 'boolean', 'cmo_variable_catalog.is_active', { values: YES_NO }),
+        createdAt('cmo_variable_catalog'),
+        updatedAt('cmo_variable_catalog'),
+      ],
+      rows: raw.cmoVariableCatalog,
+    },
+    {
+      id: 'cmo_versiones_modelo', folder: 'raw', title: 'Versiones del modelo CMO y umbrales de prioridad', grain: 'Una versión del modelo', key: ['model_version'],
+      columns: [
+        c('model_version', 'Versión del modelo', 'string', 'cmo_model_versions.model_version', { definition: 'Clave referenciada por cmo_estratificaciones_registro.model_version.' }),
+        c('engine_version', 'Versión del motor de cálculo', 'string', 'cmo_model_versions.engine_version'),
+        c('subtype', 'Subtipo del modelo', 'string', 'cmo_model_versions.subtype'),
+        c('source_repository', 'Repositorio de origen del modelo', 'string', 'cmo_model_versions.source_repository'),
+        c('source_commit', 'Commit de origen del modelo', 'string', 'cmo_model_versions.source_commit'),
+        c('level1_min_score', 'Puntuación mínima para prioridad 1', 'decimal', 'cmo_model_versions.level1_min_score', { unit: 'puntos' }),
+        c('level2_min_score', 'Puntuación mínima para prioridad 2', 'decimal', 'cmo_model_versions.level2_min_score', { unit: 'puntos' }),
+        c('special_rule_codes', 'Reglas especiales (JSON)', 'json', 'cmo_model_versions.special_rule_codes'),
+        c('status', 'Estado', 'string', 'cmo_model_versions.status', { values: { active: 'Activa', retired: 'Retirada' } }),
+        c('notes', 'Notas', 'string', 'cmo_model_versions.notes'),
+        createdAt('cmo_model_versions'),
+        updatedAt('cmo_model_versions'),
+      ],
+      rows: raw.cmoModelVersions,
     },
   ];
 
