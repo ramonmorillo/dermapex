@@ -839,8 +839,15 @@ export function buildDatasets(raw: RawData, todayIso: string): BuildResult {
     return c(name, label, type, name.startsWith('cmo_') || name.startsWith('inf_') ? 'cmo_stratification_item_values.raw_value (codificado)' : 'cmo_stratification_registry', {
       values: name === 'visit_type' ? VISIT_TYPE_VALUES : cmoDictionary.valueLabels[name],
       notes: name.startsWith('cmo_') || name.startsWith('inf_') ? '9 = Desconocido (respuesta «no se sabe»); vacío = no registrado.' : undefined,
+      rule: name === 'visit_date' ? 'Fecha de realización de la visita o, si no consta, fecha programada; vacía si no consta ninguna. Distinta de visit_date en visitas y long_visitas (solo realización): para separarlas, use raw/cmo_estratificaciones_registro (visit_date y scheduled_date).' : undefined,
     });
   });
+
+  for (const s of raw.cmoRegistry) {
+    if (!s.visit_date && !s.scheduled_date) {
+      issues.push({ tipo: 'dato_incompleto', gravedad: 'revisar', tabla: 'cmo_stratification_registry', registro_id: s.id as string, study_code: studyCodeOfPatient(s.patient_id), detalle: 'Estratificación registrada en una visita sin fecha de realización ni fecha programada.' });
+    }
+  }
 
   // ── Medicación por visita ──
   const medVisitRows: Row[] = [];
