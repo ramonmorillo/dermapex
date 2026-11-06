@@ -26,11 +26,12 @@ import {
   type InterventionCatalogItem,
 } from '../services/interventionCatalogService';
 import {
+  NEW_INTERVENTION_DEFAULTS,
+  buildInterventionPayload,
   createIntervention,
   updateIntervention,
   listInterventionsByVisit,
   type Intervention,
-  type PriorityLevel,
 } from '../services/interventionService';
 import { getPatientById, type Patient } from '../services/patientService';
 import { getVisitById } from '../services/visitService';
@@ -50,15 +51,6 @@ const CMO_PILLAR_OPTIONS: Array<{ value: CmoPillar; label: string }> = [
   { value: 'oportunidad', label: 'Oportunidad' },
 ];
 
-// Prioridad de la intervención (no es el nivel CMO; se propone a partir de él).
-const INTERVENTION_PRIORITY_LABEL: Record<PriorityLevel, string> = {
-  high: 'Alta',
-  medium: 'Media',
-  low: 'Baja',
-};
-
-const CMO_PRIORITY_TO_INTERVENTION_PRIORITY: Record<CmoLevel, PriorityLevel> = { 1: 'high', 2: 'medium', 3: 'low' };
-
 function normalizeCmoPillar(value: string | null | undefined): CmoPillar | '' {
   if (!value) return '';
   const normalized = value.trim().toLowerCase();
@@ -72,12 +64,14 @@ function toDbCmoPillar(value: CmoPillar | ''): string | null {
   return value ? CMO_PILLAR_LABEL[value] : null;
 }
 
+// Formulario simplificado (decisión IP 2026-11-06): sin prioridad, nivel CMO vinculado ni «entregada».
+// Las columnas priority_level, linked_to_cmo_level y delivered se conservan en BD con su histórico:
+//   · alta nueva: delivered = true (registrar = realizada en esta visita, igual que el brazo estándar);
+//     priority_level y linked_to_cmo_level = null (el nivel de la visita sale de su estratificación).
+//   · edición: esos tres campos NO se envían, así que conservan el valor histórico.
 type FormState = {
   catalog_choice: string;
   cmo_pillar: CmoPillar | '';
-  priority_level: PriorityLevel;
-  delivered: boolean;
-  linked_to_cmo_level: string;
   outcome: string;
   notes: string;
 };
@@ -85,9 +79,6 @@ type FormState = {
 const EMPTY_FORM: FormState = {
   catalog_choice: '',
   cmo_pillar: '',
-  priority_level: 'low',
-  delivered: true,
-  linked_to_cmo_level: '',
   outcome: '',
   notes: '',
 };
@@ -154,9 +145,6 @@ export function VisitInterventionsPage() {
         setCatalog(catalogResult.data);
         if (catalogResult.errorMessage) setErrorMessage(catalogResult.errorMessage);
         setCurrentLevel(reference);
-        if (reference) {
-          setForm({ ...EMPTY_FORM, priority_level: CMO_PRIORITY_TO_INTERVENTION_PRIORITY[reference.level], linked_to_cmo_level: String(reference.level) });
-        }
         await loadInterventions();
       }
       if (mounted) setLoading(false);
@@ -204,21 +192,24 @@ export function VisitInterventionsPage() {
       return;
     }
 
+    if (!form.cmo_pillar) {
+      setErrorMessage('Selecciona el pilar CMO principal de la intervención.');
+      setSaving(false);
+      return;
+    }
+
     // Para tarjetas de catálogo, texto, pilar, código y versión los sella la base de datos desde el catálogo.
-    const payload = {
-      intervention_type: interventionType,
-      intervention_domain: toDbCmoPillar(form.cmo_pillar),
-      catalog_item_id: catalogItem?.id ?? null,
-      priority_level: form.priority_level,
-      delivered: form.delivered,
-      linked_to_cmo_level: Number(form.linked_to_cmo_level),
-      outcome: form.outcome || null,
-      notes: form.notes || null,
-    };
+    const payload = buildInterventionPayload({
+      interventionType,
+      cmoPillarLabel: toDbCmoPillar(form.cmo_pillar),
+      catalogItemId: catalogItem?.id ?? null,
+      outcome: form.outcome,
+      notes: form.notes,
+    });
 
     const result = editingInterventionId
       ? await updateIntervention(editingInterventionId, payload)
-      : await createIntervention({ ...payload, visit_id: visitId });
+      : await createIntervention({ ...payload, ...NEW_INTERVENTION_DEFAULTS, visit_id: visitId });
 
     if (result.errorMessage) {
       setErrorMessage(result.errorMessage);
@@ -236,9 +227,6 @@ export function VisitInterventionsPage() {
     setForm({
       catalog_choice: item.catalog_item_id ?? OTHER_INTERVENTION_CODE,
       cmo_pillar: normalizeCmoPillar(item.intervention_domain),
-      priority_level: item.priority_level ?? 'low',
-      delivered: item.delivered ?? true,
-      linked_to_cmo_level: String(item.linked_to_cmo_level ?? currentLevel?.level ?? ''),
       outcome: item.outcome ?? '',
       notes: item.notes ?? '',
     });
@@ -304,7 +292,7 @@ export function VisitInterventionsPage() {
         ) : (
           <Notice tone="info" className="visit-score-notice">
             <p>
-              El paciente no tiene estratificación previa: se muestra el catálogo completo y debes seleccionar el nivel CMO vinculado.{' '}
+              El paciente no tiene estratificación previa: se muestra el catálogo completo.{' '}
               <Link to={`/visits/${visitId}/stratification`}>Estratificar</Link>
             </p>
           </Notice>
@@ -317,7 +305,7 @@ export function VisitInterventionsPage() {
         <SectionHeader
           id="intervention-form-title"
           title="Nueva intervención"
-          description={`Catálogo ${INTERVENTION_CATALOG_VERSION} (borrador literal de la fuente, pendiente de validación IP).`}
+          description={`Registre las intervenciones realizadas en esta visita. Catálogo ${INTERVENTION_CATALOG_VERSION} (borrador literal de la fuente, pendiente de validación IP).`}
         />
         <div className="catalog-toolbar">
           <label className="checkbox-row">
@@ -384,30 +372,6 @@ export function VisitInterventionsPage() {
             </select>
           </label>
 
-          <div className="grid-2">
-            <label>
-              Prioridad de la intervención
-              <select value={form.priority_level} onChange={(e) => setForm((p) => ({ ...p, priority_level: e.target.value as PriorityLevel }))}>
-                <option value="high">{INTERVENTION_PRIORITY_LABEL.high}</option>
-                <option value="medium">{INTERVENTION_PRIORITY_LABEL.medium}</option>
-                <option value="low">{INTERVENTION_PRIORITY_LABEL.low}</option>
-              </select>
-            </label>
-            <label>
-              Nivel CMO vinculado
-              <select required value={form.linked_to_cmo_level} onChange={(e) => setForm((p) => ({ ...p, linked_to_cmo_level: e.target.value }))}>
-                <option value="" disabled>Seleccionar nivel</option>
-                {([1, 2, 3] as const).map((level) => (
-                  <option key={level} value={String(level)}>{CMO_LEVEL_META[level].label}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <label className="checkbox-row">
-            <input type="checkbox" checked={form.delivered} onChange={(e) => setForm((p) => ({ ...p, delivered: e.target.checked }))} />
-            Intervención entregada
-          </label>
           <label>
             Resultado
             <input value={form.outcome} onChange={(e) => setForm((p) => ({ ...p, outcome: e.target.value }))} />
@@ -442,11 +406,10 @@ export function VisitInterventionsPage() {
                   <div className="intervention-main">
                     <p className="intervention-title">{item.intervention_type}</p>
                     <div className="intervention-meta">
-                      <span><strong>Prioridad:</strong> {item.priority_level ? INTERVENTION_PRIORITY_LABEL[item.priority_level] : '-'}</span>
                       <span><strong>Pilar CMO:</strong> {pillar ? CMO_PILLAR_LABEL[pillar] : 'No asignado'}</span>
-                      <span><strong>Nivel vinculado:</strong> {toCmoLevel(item.linked_to_cmo_level) ? CMO_LEVEL_META[toCmoLevel(item.linked_to_cmo_level) as CmoLevel].shortLabel : '-'}</span>
                       <span><strong>Catálogo:</strong> {item.catalog_code ? `${item.catalog_code} · ${item.catalog_version}` : 'Texto libre'}</span>
-                      <StatusBadge tone={item.delivered ? 'positive' : 'neutral'}>{item.delivered ? 'Entregada' : 'Pendiente'}</StatusBadge>
+                      {/* Solo registros históricos marcados como no entregados (el dato se conserva). */}
+                      {item.delivered === false ? <StatusBadge tone="neutral">Pendiente (registro histórico)</StatusBadge> : null}
                     </div>
                     {item.outcome?.trim() ? <p className="intervention-note"><strong>Resultado:</strong> {item.outcome.trim()}</p> : null}
                     {item.notes?.trim() ? <p className="intervention-note"><strong>Notas:</strong> {item.notes.trim()}</p> : null}

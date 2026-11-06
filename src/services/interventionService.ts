@@ -28,6 +28,31 @@ type ServerStampedFields = 'catalog_code' | 'catalog_version' | 'usual_care_code
 export type NewInterventionInput = Omit<Intervention, 'id' | 'created_at' | 'updated_at' | ServerStampedFields>;
 export type UpdateInterventionInput = Partial<Omit<Intervention, 'id' | 'visit_id' | 'created_at' | 'updated_at' | ServerStampedFields>>;
 
+/**
+ * Formulario simplificado (decisión IP 2026-11-06): la interfaz ya no captura prioridad, nivel CMO
+ * vinculado ni «entregada». Las columnas se conservan en BD con su histórico:
+ *   · alta nueva: delivered = true (registrar = realizada en la visita, como en el brazo estándar);
+ *     priority_level y linked_to_cmo_level = null (el nivel de la visita sale de su estratificación);
+ *   · edición: esos campos NO se envían, de modo que conservan el valor histórico.
+ */
+export const NEW_INTERVENTION_DEFAULTS = { delivered: true, priority_level: null, linked_to_cmo_level: null } as const;
+
+export function buildInterventionPayload(input: {
+  interventionType: string;
+  cmoPillarLabel: string | null;
+  catalogItemId: string | null;
+  outcome: string;
+  notes: string;
+}) {
+  return {
+    intervention_type: input.interventionType,
+    intervention_domain: input.cmoPillarLabel,
+    catalog_item_id: input.catalogItemId,
+    outcome: input.outcome || null,
+    notes: input.notes || null,
+  };
+}
+
 const INTERVENTION_SELECT =
   'id,visit_id,intervention_type,intervention_domain,priority_level,delivered,linked_to_cmo_level,outcome,notes,catalog_item_id,catalog_code,catalog_version,usual_care_item_id,usual_care_code,usual_care_version,created_at,updated_at';
 

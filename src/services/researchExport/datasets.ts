@@ -12,12 +12,22 @@
 import { SEX_TYPE_OPTIONS, VISIT_STATUS_OPTIONS, VISIT_TYPE_OPTIONS } from '../../constants/enums';
 import type { StratificationItemValueRow, StratificationRegistryRow } from '../cmoStratificationService';
 import { deriveQuestionnaireScores, normalizeQuestionnaireCode, type QuestionnaireType } from '../questionnaireDomain';
+import {
+  POEM_BAND_LABEL,
+  POEM_ITEM_KEYS,
+  POEM_OPTIONS,
+  PRURITUS_NRS_VARIANT_LABEL,
+  isResponseItemKey,
+  poemBand,
+  scorePoem,
+  scorePruritusNrs,
+} from '../atopicDermatitisPro';
 import { buildStratificationExportRows, stratificationSpssDictionary } from '../stratificationExport';
 import type { TableRequest } from './reader';
 import type { ColumnSpec, ColumnType, Dataset } from './spec';
 
 /** Versión de las reglas de puntuación de cuestionarios aplicadas (src/services/questionnaireDomain.ts). */
-export const QUESTIONNAIRE_SCORING_VERSION = 'dermapex-pro-scoring-0.1 (provisional, pendiente de validar con los manuales oficiales)';
+export const QUESTIONNAIRE_SCORING_VERSION = 'dermapex-pro-scoring-0.2 (provisional, pendiente de validar con los manuales oficiales; 0.2 añade POEM y NRS de prurito)';
 
 const USUAL_CARE_NO_INTERVENTION_CODE = 'sin-intervencion';
 
@@ -126,6 +136,9 @@ const ARM_VALUES = { cmo: 'Cohorte de intervención CMO-MAPEX', standard: 'Cohor
 const YES_NO = { '1': 'Sí', '0': 'No' };
 // Opciones de respuesta de IEXPAC tal como se muestran en el formulario (VisitQuestionnairesPage.tsx, LIKERT_LABELS).
 const IEXPAC_ANSWER_LABELS = { '1': 'Nunca', '2': 'Casi nunca', '3': 'A veces', '4': 'Casi siempre', '5': 'Siempre' };
+// POEM (src/services/atopicDermatitisPro.ts): opciones y bandas del documento aportado por el IP.
+const POEM_ANSWER_LABELS = Object.fromEntries(POEM_OPTIONS.map((o) => [String(o.value), o.label]));
+const POEM_BAND_VALUES: Record<string, string> = { ...POEM_BAND_LABEL };
 
 // Columnas reutilizables.
 const c = (name: string, label: string, type: ColumnType, source: string, extra: Partial<ColumnSpec> = {}): ColumnSpec => ({ name, label, type, source, ...extra });
@@ -144,7 +157,17 @@ export const VISIT_SLOTS: Array<{ type: string; suffix: string; label: string }>
 
 // ── Instrumentos y métricas derivadas ─────────────────────────────────────
 
-type Metric = { suffix: string; label: string; type: ColumnType; pick: 'total' | 'secondary' | 'profile'; rule: string; values?: Record<string, string> };
+type Metric = {
+  suffix: string;
+  label: string;
+  type: ColumnType;
+  pick: 'total' | 'secondary' | 'profile' | 'compute';
+  rule: string;
+  values?: Record<string, string>;
+  /** pick = 'compute': valor a partir del registro (respuestas originales y total derivado). */
+  compute?: (responses: Record<string, unknown>, total: number | null) => unknown;
+};
+const metaText = (key: string) => (responses: Record<string, unknown>) => (typeof responses[key] === 'string' ? responses[key] : null);
 
 export const INSTRUMENTS: Array<{ code: string; type: QuestionnaireType; prefix: string; name: string; metrics: Metric[] }> = [
   {
@@ -166,6 +189,23 @@ export const INSTRUMENTS: Array<{ code: string; type: QuestionnaireType; prefix:
     metrics: [
       { suffix: 'media', label: 'EVASAF media de los 10 ítems (1-5)', type: 'decimal', pick: 'total', rule: 'Media de los 10 ítems (PROVISIONAL: el artículo no define puntuación total).' },
       { suffix: 'suma', label: 'EVASAF suma de los 10 ítems (10-50)', type: 'integer', pick: 'secondary', rule: 'Suma de los 10 ítems.' },
+    ],
+  },
+  {
+    code: 'POEM', type: 'poem', prefix: 'poem', name: 'POEM',
+    metrics: [
+      { suffix: 'total', label: 'POEM total (0-28)', type: 'integer', pick: 'total', rule: 'Suma de los 7 ítems (0-4), SOLO si están los 7 contestados; vacío si falta alguno (regla estricta, decisión IP 2026-11-06; la regla de Nottingham —1 ausente = 0— no se aplica). A mayor puntuación, más síntomas.' },
+      { suffix: 'sin_contestar', label: 'POEM número de ítems sin contestar', type: 'integer', pick: 'secondary', rule: 'Ítems 1-7 sin respuesta válida (0-7). Permite aplicar la regla de Nottingham en el análisis.' },
+      { suffix: 'banda', label: 'POEM banda de gravedad', type: 'string', pick: 'compute', values: POEM_BAND_VALUES, compute: (_r, total) => poemBand(total), rule: 'Bandas del documento aportado (Charman 2013): 0-2, 3-7, 8-16, 17-24, 25-28; vacía si no hay total.' },
+      { suffix: 'version', label: 'POEM versión del instrumento', type: 'string', pick: 'compute', compute: metaText('_version'), rule: 'Versión guardada con cada registro (responses._version).' },
+    ],
+  },
+  {
+    code: 'PRURITUS_NRS', type: 'pruritus_nrs', prefix: 'nrs_prurito', name: 'NRS de prurito',
+    metrics: [
+      { suffix: 'valor', label: 'NRS de prurito: peor picor en las últimas 24 h (0-10)', type: 'integer', pick: 'total', rule: 'Valor 0-10 tal como se registró; vacío = no registrado (nunca 0). Sin umbrales de respuesta.' },
+      { suffix: 'variante', label: 'NRS de prurito: variante de la escala', type: 'string', pick: 'compute', values: PRURITUS_NRS_VARIANT_LABEL, compute: metaText('_variant'), rule: 'Variante guardada con cada registro (responses._variant).' },
+      { suffix: 'periodo_recuerdo', label: 'NRS de prurito: periodo de recuerdo', type: 'string', pick: 'compute', values: { '24h': 'Últimas 24 horas' }, compute: metaText('_recall_period'), rule: 'Periodo guardado con cada registro (responses._recall_period).' },
     ],
   },
   {
@@ -382,9 +422,9 @@ export function buildDatasets(raw: RawData, todayIso: string): BuildResult {
         c('visit_id', 'Identificador de la visita (UUID)', 'string', 'interventions.visit_id'),
         c('intervention_type', 'Intervención', 'string', 'interventions.intervention_type'),
         c('intervention_domain', 'Pilar CMO (cohorte CMO)', 'string', 'interventions.intervention_domain'),
-        c('priority_level', 'Prioridad', 'string', 'interventions.priority_level', { values: { low: 'Baja', medium: 'Media', high: 'Alta' } }),
-        c('delivered', 'Intervención realizada', 'boolean', 'interventions.delivered', { values: YES_NO }),
-        c('linked_to_cmo_level', 'Nivel CMO vinculado', 'integer', 'interventions.linked_to_cmo_level'),
+        c('priority_level', 'Prioridad', 'string', 'interventions.priority_level', { values: { low: 'Baja', medium: 'Media', high: 'Alta' }, notes: 'Solo registros anteriores al 2026-11-06: el formulario ya no recoge la prioridad (vacío en los nuevos).' }),
+        c('delivered', 'Intervención realizada', 'boolean', 'interventions.delivered', { values: YES_NO, notes: 'Desde el 2026-11-06 el formulario no muestra la casilla: toda intervención registrada se guarda como realizada (1), igual que en la cohorte estándar. Los valores anteriores se conservan.' }),
+        c('linked_to_cmo_level', 'Nivel CMO vinculado', 'integer', 'interventions.linked_to_cmo_level', { notes: 'Solo registros anteriores al 2026-11-06 (vacío en los nuevos). El nivel de la visita está en long_visitas.cmo_nivel.' }),
         c('outcome', 'Resultado', 'string', 'interventions.outcome'),
         c('notes', 'Notas', 'string', 'interventions.notes'),
         c('catalog_item_id', 'Ítem del catálogo CMO (UUID)', 'string', 'interventions.catalog_item_id'),
@@ -622,12 +662,22 @@ export function buildDatasets(raw: RawData, todayIso: string): BuildResult {
     const responses = (q.responses ?? {}) as Record<string, unknown>;
     const scores = deriveQuestionnaireScores(type, responses);
     const profile = typeof responses.profile === 'string' ? responses.profile : null;
-    const answered = Object.values(responses).filter(isAnswered).length;
+    // Las claves «_…» son metadatos del registro (versión/variante), no ítems respondidos.
+    const answered = Object.entries(responses).filter(([key, value]) => isResponseItemKey(key) && isAnswered(value)).length;
+    if (type === 'poem') {
+      const poem = scorePoem(responses);
+      if (poem.invalidItems.length > 0) issues.push({ tipo: 'valor_fuera_de_rango', gravedad: 'error', tabla: 'questionnaire_responses', registro_id: q.id as string, study_code: studyCodeOfVisit(q.visit_id), detalle: `POEM con ítems fuera de 0-4: ${poem.invalidItems.join(', ')}.` });
+      else if (poem.answeredItems > 0 && !poem.complete) issues.push({ tipo: 'dato_incompleto', gravedad: 'revisar', tabla: 'questionnaire_responses', registro_id: q.id as string, study_code: studyCodeOfVisit(q.visit_id), detalle: `POEM incompleto (${poem.answeredItems}/7 ítems): sin puntuación total.` });
+    }
+    if (type === 'pruritus_nrs' && scorePruritusNrs(responses).invalid) {
+      issues.push({ tipo: 'valor_fuera_de_rango', gravedad: 'error', tabla: 'questionnaire_responses', registro_id: q.id as string, study_code: studyCodeOfVisit(q.visit_id), detalle: 'NRS de prurito fuera de 0-10.' });
+    }
     if (!derivedByVisit.has(q.visit_id as string)) derivedByVisit.set(q.visit_id as string, new Map());
     derivedByVisit.get(q.visit_id as string)!.set(type, { total: scores.totalScore, secondary: scores.secondaryScore, profile, answered, responses });
   }
   const metricValue = (d: Derived | undefined, metric: Metric): unknown => {
     if (!d) return null;
+    if (metric.pick === 'compute') return metric.compute ? metric.compute(d.responses, d.total) ?? null : null;
     const value = metric.pick === 'total' ? d.total : metric.pick === 'secondary' ? d.secondary : d.profile;
     if (metric.type === 'boolean') return value === null ? null : value === 1;
     return value;
@@ -753,18 +803,23 @@ export function buildDatasets(raw: RawData, todayIso: string): BuildResult {
       c(`cmo_nivel${s}`, `Nivel CMO${l}`, 'integer', 'cmo_stratification_registry.priority', { visit: slot.label, values: { '1': 'Nivel 1', '2': 'Nivel 2', '3': 'Nivel 3' } }),
       ...instrumentColumns(s, l).map((col) => ({ ...col, visit: slot.label })),
       ...iexpacItemKeys.map((k) => c(`iexpac_${k}${s}`, `IEXPAC ítem ${k.slice(1)}${l}`, 'integer', 'questionnaire_responses.responses', { visit: slot.label, instrument: 'IEXPAC', values: IEXPAC_ANSWER_LABELS, notes: 'Ítems 12-15 condicionados: vacío = no aplica o no contestado (no distinguibles en el registro actual).' })),
+      ...POEM_ITEM_KEYS.map((k) => c(`poem_${k}${s}`, `POEM ítem ${k.slice(1)}${l}`, 'integer', 'questionnaire_responses.responses', { visit: slot.label, instrument: 'POEM', values: POEM_ANSWER_LABELS, notes: 'Vacío = no contestado (no es 0). Solo se recoge en basal y mes 12.' })),
       c(`n_intervenciones${s}`, `Número de intervenciones${l}`, 'integer', 'derivada', { visit: slot.label }),
     );
   }
-  const changeVars: Array<{ name: string; label: string; from: string; type: ColumnType }> = [
+  // comparableBy: variable de versión/variante que debe coincidir en v0 y v12 para calcular el cambio.
+  const changeVars: Array<{ name: string; label: string; from: string; type: ColumnType; comparableBy?: string }> = [
     { name: 'iexpac_total_cambio_v12_v0', label: 'Cambio en IEXPAC global (mes 12 − basal)', from: 'iexpac_total', type: 'decimal' },
     { name: 'dlqi_total_cambio_v12_v0', label: 'Cambio en DLQI total (mes 12 − basal)', from: 'dlqi_total', type: 'integer' },
     { name: 'evasaf_media_cambio_v12_v0', label: 'Cambio en EVASAF media (mes 12 − basal)', from: 'evasaf_media', type: 'decimal' },
     { name: 'eq5d_eva_cambio_v12_v0', label: 'Cambio en EQ-5D-5L EVA (mes 12 − basal)', from: 'eq5d_eva', type: 'decimal' },
     { name: 'pam10_suma_cambio_v12_v0', label: 'Cambio en PAM-10 bruta (mes 12 − basal)', from: 'pam10_suma', type: 'integer' },
+    { name: 'poem_total_cambio_v12_v0', label: 'Cambio en POEM total (mes 12 − basal)', from: 'poem_total', type: 'integer', comparableBy: 'poem_version' },
+    { name: 'nrs_prurito_valor_cambio_v12_v0', label: 'Cambio en NRS de prurito (mes 12 − basal)', from: 'nrs_prurito_valor', type: 'integer', comparableBy: 'nrs_prurito_variante' },
   ];
   for (const ch of changeVars) {
-    wideColumns.push(c(ch.name, ch.label, ch.type, 'derivada', { rule: `${ch.from}_v12 − ${ch.from}_v0; vacío si falta alguno. Redondeo a 4 decimales para evitar error de coma flotante.` }));
+    const comparable = ch.comparableBy ? ` Solo si ${ch.comparableBy}_v0 = ${ch.comparableBy}_v12 (mediciones comparables).` : '';
+    wideColumns.push(c(ch.name, ch.label, ch.type, 'derivada', { rule: `${ch.from}_v12 − ${ch.from}_v0; vacío si falta alguno.${comparable} Redondeo a 4 decimales para evitar error de coma flotante. Valor negativo = menos síntomas en POEM/NRS.` }));
   }
 
   const wideRows = [...raw.patients]
@@ -807,12 +862,19 @@ export function buildDatasets(raw: RawData, todayIso: string): BuildResult {
             row[`iexpac_${k}${s}`] = value ?? null;
           }
         }
+        const poem = v ? derivedByVisit.get(v.id as string)?.get('poem') : undefined;
+        for (const k of POEM_ITEM_KEYS) {
+          const value = poem?.responses[k];
+          // Fuera de rango ya consta en incidencias_integridad; en WIDE queda vacío (conservado en cuestionarios_items).
+          row[`poem_${k}${s}`] = typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 4 ? value : null;
+        }
         row[`n_intervenciones${s}`] = v ? (interventionsByVisit.get(v.id as string) ?? []).filter((i) => i.usual_care_code !== USUAL_CARE_NO_INTERVENTION_CODE).length : null;
       }
       for (const ch of changeVars) {
         const a = row[`${ch.from}_v0`];
         const b = row[`${ch.from}_v12`];
-        row[ch.name] = typeof a === 'number' && typeof b === 'number' ? Number((b - a).toFixed(4)) : null;
+        const comparable = !ch.comparableBy || (typeof row[`${ch.comparableBy}_v0`] === 'string' && row[`${ch.comparableBy}_v0`] === row[`${ch.comparableBy}_v12`]);
+        row[ch.name] = comparable && typeof a === 'number' && typeof b === 'number' ? Number((b - a).toFixed(4)) : null;
       }
       return row;
     });

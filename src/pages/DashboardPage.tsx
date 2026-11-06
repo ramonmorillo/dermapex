@@ -211,7 +211,8 @@ export function DashboardPage() {
             </ul>
           </div>
           <div>
-            <h3>Por nivel CMO vinculado</h3>
+            <h3>Por nivel CMO vinculado (registros históricos)</h3>
+            <p className="help-text">El formulario ya no recoge el nivel vinculado (decisión IP 2026-11-06): solo cuentan las intervenciones registradas antes del cambio. El nivel de cada visita se analiza desde su estratificación.</p>
             <ul className="bar-list">
               {levelRows.map((row) => (
                 <li key={row.key}>

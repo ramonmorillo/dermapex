@@ -23,6 +23,24 @@ import {
   scoreDlqi,
 } from '../services/dlqi';
 import { EVASAF_ITEMS, EVASAF_SCALE, scoreEvasaf } from '../services/evasaf';
+import {
+  POEM_BAND_LABEL,
+  POEM_ITEMS,
+  POEM_ITEM_KEYS,
+  POEM_OPTIONS,
+  PRURITUS_NRS_ANCHORS,
+  PRURITUS_NRS_QUESTION,
+  PRURITUS_NRS_VALUES,
+  PRURITUS_NRS_VARIANT_LABEL,
+  PRURITUS_NRS_VARIANT,
+  buildPoemResponses,
+  buildPruritusNrsResponses,
+  isPoemItemValue,
+  isPruritusNrsValue,
+  scorePoem,
+  type PoemItemKey,
+  type PoemItemValue,
+} from '../services/atopicDermatitisPro';
 
 const IEXPAC_ITEM_KEYS = Array.from({ length: 11 }, (_, idx) => `q${idx + 1}` as const);
 const EQ5D_DIMENSIONS = ['mobility', 'selfcare', 'activities', 'pain', 'anxiety'] as const;
@@ -299,6 +317,33 @@ function hydratePam10(record: QuestionnaireResponseRecord | undefined): Pam10For
   return out;
 }
 
+// POEM y NRS (solo basal y mes 12): se pueden guardar incompletos (borrador). Ausente ≠ 0.
+type PoemForm = Record<PoemItemKey, '' | `${PoemItemValue}`>;
+const EMPTY_POEM: PoemForm = { q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '' };
+
+function poemFormToValues(form: PoemForm): Partial<Record<PoemItemKey, PoemItemValue>> {
+  const out: Partial<Record<PoemItemKey, PoemItemValue>> = {};
+  for (const key of POEM_ITEM_KEYS) {
+    if (form[key] !== '') out[key] = Number(form[key]) as PoemItemValue;
+  }
+  return out;
+}
+
+function hydratePoem(record: QuestionnaireResponseRecord | undefined): PoemForm {
+  const r = record?.responses ?? {};
+  const out: PoemForm = { ...EMPTY_POEM };
+  for (const key of POEM_ITEM_KEYS) {
+    const v = r[key];
+    if (isPoemItemValue(v)) out[key] = String(v) as `${PoemItemValue}`;
+  }
+  return out;
+}
+
+function hydratePruritusNrs(record: QuestionnaireResponseRecord | undefined): string {
+  const v = record?.responses?.score;
+  return isPruritusNrsValue(v) ? String(v) : '';
+}
+
 export function VisitQuestionnairesPage() {
   const { visitId = '' } = useParams();
   const [visitPatientId, setVisitPatientId] = useState('');
@@ -309,6 +354,10 @@ export function VisitQuestionnairesPage() {
   const [pam10Form, setPam10Form] = useState<Pam10Form>({ q1: '', q2: '', q3: '', q4: '', q5: '', q6: '', q7: '', q8: '', q9: '', q10: '' });
   const [dlqiForm, setDlqiForm] = useState<DlqiForm>(EMPTY_DLQI);
   const [evasafForm, setEvasafForm] = useState<EvasafForm>(EMPTY_EVASAF);
+  const [poemForm, setPoemForm] = useState<PoemForm>(EMPTY_POEM);
+  const [pruritusNrs, setPruritusNrs] = useState<string>('');
+  // Instrumentos ya guardados en esta visita: si se vacían, se guarda el registro sin respuestas (ausente).
+  const [savedAdInstruments, setSavedAdInstruments] = useState<{ poem: boolean; nrs: boolean }>({ poem: false, nrs: false });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -321,6 +370,7 @@ export function VisitQuestionnairesPage() {
   const pam10Metrics = useMemo(() => calculatePam10(pam10Form), [pam10Form]);
   const dlqiMetrics = useMemo(() => calculateDlqi(dlqiForm), [dlqiForm]);
   const evasafMetrics = useMemo(() => calculateEvasaf(evasafForm), [evasafForm]);
+  const poemScore = useMemo(() => scorePoem(poemFormToValues(poemForm)), [poemForm]);
 
   useEffect(() => {
     async function loadData() {
@@ -345,6 +395,9 @@ export function VisitQuestionnairesPage() {
       setPam10Form(hydratePam10(byType.get('pam10')));
       setDlqiForm(hydrateDlqi(byType.get('dlqi')));
       setEvasafForm(hydrateEvasaf(byType.get('evasaf')));
+      setPoemForm(hydratePoem(byType.get('poem')));
+      setPruritusNrs(hydratePruritusNrs(byType.get('pruritus_nrs')));
+      setSavedAdInstruments({ poem: byType.has('poem'), nrs: byType.has('pruritus_nrs') });
     }
 
     void loadData();
@@ -367,6 +420,12 @@ export function VisitQuestionnairesPage() {
 
     if (!iexpacMetrics || !moriskyMetrics || !eq5dMetrics || !pam10Metrics || !dlqiMetrics || !evasafMetrics) {
       setErrorMessage('Completa todos los campos obligatorios de IEXPAC, DLQI, EVASAF, Morisky, EQ-5D-5L y PAM-10.');
+      return;
+    }
+
+    const nrsValue = pruritusNrs === '' ? null : Number(pruritusNrs);
+    if (nrsValue !== null && !isPruritusNrsValue(nrsValue)) {
+      setErrorMessage('La NRS de prurito debe ser un número entero entre 0 y 10, o quedar sin registrar.');
       return;
     }
 
@@ -415,6 +474,26 @@ export function VisitQuestionnairesPage() {
       },
     ];
 
+    // POEM/NRS: se guardan si hay alguna respuesta o si ya existía el registro (para reflejar que se vació).
+    if (poemScore.answeredItems > 0 || savedAdInstruments.poem) {
+      payload.push({
+        visit_id: visitId,
+        questionnaire_type: 'poem',
+        responses: buildPoemResponses(poemFormToValues(poemForm)),
+        total_score: poemScore.total,
+        secondary_score: poemScore.missingItems,
+      });
+    }
+    if (nrsValue !== null || savedAdInstruments.nrs) {
+      payload.push({
+        visit_id: visitId,
+        questionnaire_type: 'pruritus_nrs',
+        responses: buildPruritusNrsResponses(nrsValue),
+        total_score: nrsValue,
+        secondary_score: null,
+      });
+    }
+
     setSaving(true);
     const result = await saveQuestionnaireBundle(payload);
     setSaving(false);
@@ -437,7 +516,14 @@ export function VisitQuestionnairesPage() {
     setPam10Form(hydratePam10(refreshedByType.get('pam10')));
     setDlqiForm(hydrateDlqi(refreshedByType.get('dlqi')));
     setEvasafForm(hydrateEvasaf(refreshedByType.get('evasaf')));
-    setSuccessMessage('Cuestionarios guardados correctamente.');
+    setPoemForm(hydratePoem(refreshedByType.get('poem')));
+    setPruritusNrs(hydratePruritusNrs(refreshedByType.get('pruritus_nrs')));
+    setSavedAdInstruments({ poem: refreshedByType.has('poem'), nrs: refreshedByType.has('pruritus_nrs') });
+    setSuccessMessage(
+      poemScore.answeredItems > 0 && !poemScore.complete
+        ? `Cuestionarios guardados. POEM queda como borrador incompleto (${poemScore.answeredItems}/7 ítems): sin puntuación total.`
+        : 'Cuestionarios guardados correctamente.',
+    );
   };
 
   const renderDlqiItem = (item: (typeof DLQI_ITEMS)[number]) => {
@@ -481,9 +567,8 @@ export function VisitQuestionnairesPage() {
           adherencia…) y sus reglas de puntuación se configurarán a partir del protocolo.
         */}
         <Notice tone="warning">
-          IEXPAC, DLQI y EVASAF forman parte del protocolo DERMAPEX (licencia del DLQI pendiente). Morisky-Green, EQ-5D-5L y
-          PAM-10 son instrumentos heredados de IRIS, pendientes de validación. POEM y NRS de prurito aún no
-          están configurados.
+          IEXPAC, POEM, NRS de prurito, DLQI y EVASAF forman parte del protocolo DERMAPEX (licencias de DLQI, POEM y NRS
+          pendientes de confirmar). Morisky-Green, EQ-5D-5L y PAM-10 son instrumentos heredados de IRIS, pendientes de validación.
         </Notice>
 
         {!questionnaireEnabled ? (
@@ -564,6 +649,90 @@ export function VisitQuestionnairesPage() {
 
             <p className="questionnaire-result">
               Puntuación global IEXPAC (ítems 1-11): <strong>{iexpacMetrics ? iexpacMetrics.totalScore.toFixed(2) : '-'}</strong> / 10
+            </p>
+          </article>
+
+          <article className="questionnaire-card" aria-labelledby="poem-title">
+            <div className="questionnaire-card-header">
+              <h2 id="poem-title">POEM – Síntomas del eccema</h2>
+              <span className="status-badge" aria-live="polite">{poemScore.answeredItems}/7 ítems</span>
+            </div>
+            <p className="help-text">
+              Referido a la última semana. Cada ítem puntúa de 0 (ningún día) a 4 (todos los días). La puntuación total
+              (0-28) solo se calcula con los 7 ítems contestados; se puede guardar incompleto como borrador.
+            </p>
+            <div className="questionnaire-grid">
+              {POEM_ITEMS.map((item, index) => (
+                <fieldset key={item.key} className="questionnaire-item">
+                  <legend>{index + 1}. {item.text}</legend>
+                  <div className="radio-row">
+                    {POEM_OPTIONS.map((option) => (
+                      <label key={option.value} className="radio-inline">
+                        <input
+                          type="radio"
+                          name={`poem-${item.key}`}
+                          value={option.value}
+                          checked={poemForm[item.key] === String(option.value)}
+                          onChange={() => setPoemForm((prev) => ({ ...prev, [item.key]: String(option.value) as `${PoemItemValue}` }))}
+                          disabled={!questionnaireEnabled}
+                        />
+                        {option.label} ({option.value})
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
+            <p className="questionnaire-result">
+              Puntuación POEM: <strong>{poemScore.total ?? '-'}</strong> / 28
+              {poemScore.band ? ` · ${POEM_BAND_LABEL[poemScore.band]}` : ''}
+              {!poemScore.complete && poemScore.answeredItems > 0 ? ` · incompleto: faltan ${poemScore.missingItems} ítem(s), sin puntuación total` : ''}
+            </p>
+            <div className="actions-inline">
+              <button type="button" className="secondary button-sm" onClick={() => setPoemForm(EMPTY_POEM)} disabled={!questionnaireEnabled || poemScore.answeredItems === 0}>
+                Borrar respuestas POEM
+              </button>
+            </div>
+          </article>
+
+          <article className="questionnaire-card" aria-labelledby="nrs-title">
+            <div className="questionnaire-card-header">
+              <h2 id="nrs-title">NRS de prurito</h2>
+              <span className="status-badge" aria-live="polite">{pruritusNrs === '' ? 'Sin registrar' : 'Registrada'}</span>
+            </div>
+            <p className="help-text">{PRURITUS_NRS_VARIANT_LABEL[PRURITUS_NRS_VARIANT]}. «Sin registrar» no equivale a 0.</p>
+            <fieldset className="questionnaire-item">
+              <legend>{PRURITUS_NRS_QUESTION}</legend>
+              <div className="radio-row nrs-scale">
+                {PRURITUS_NRS_VALUES.map((value) => (
+                  <label key={value} className="radio-inline">
+                    <input
+                      type="radio"
+                      name="pruritus-nrs"
+                      value={value}
+                      checked={pruritusNrs === String(value)}
+                      onChange={() => setPruritusNrs(String(value))}
+                      disabled={!questionnaireEnabled}
+                    />
+                    {value}
+                    {value === 0 || value === 10 ? ` · ${PRURITUS_NRS_ANCHORS[value]}` : ''}
+                  </label>
+                ))}
+                <label className="radio-inline">
+                  <input
+                    type="radio"
+                    name="pruritus-nrs"
+                    value=""
+                    checked={pruritusNrs === ''}
+                    onChange={() => setPruritusNrs('')}
+                    disabled={!questionnaireEnabled}
+                  />
+                  Sin registrar
+                </label>
+              </div>
+            </fieldset>
+            <p className="questionnaire-result">
+              Peor picor (24 h): <strong>{pruritusNrs === '' ? '-' : pruritusNrs}</strong> / 10
             </p>
           </article>
 
