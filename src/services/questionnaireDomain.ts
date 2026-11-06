@@ -141,6 +141,44 @@ export function deriveQuestionnaireScores(
   return { totalScore: null, secondaryScore: parseNumber(responses.vas) };
 }
 
+/**
+ * Cuestionarios obligatorios en la visita basal y en la de mes 12 (aviso de la ficha de paciente).
+ * POEM y NRS de prurito se añaden el 2026-11-06 (protocolo DERMAPEX). PAM-10 sigue sin ser obligatorio.
+ */
+export const REQUIRED_VISIT_QUESTIONNAIRES: readonly QuestionnaireType[] = [
+  "iexpac",
+  "dlqi",
+  "evasaf",
+  "morisky",
+  "eq5d",
+  "poem",
+  "pruritus_nrs",
+];
+
+/**
+ * ¿El registro cuenta como cuestionario cumplimentado? Para los instrumentos previos basta con que
+ * exista (criterio vigente). POEM exige los 7 ítems (un borrador no tiene puntuación) y la NRS un
+ * valor registrado (un registro sin puntuación es dato ausente, no 0).
+ */
+export function isQuestionnaireRecordComplete(
+  questionnaireType: QuestionnaireType,
+  responses: Record<string, unknown>,
+): boolean {
+  if (questionnaireType === "poem") return scorePoem(responses).complete;
+  if (questionnaireType === "pruritus_nrs") return scorePruritusNrs(responses).score !== null;
+  return true;
+}
+
+/** Instrumentos obligatorios que faltan (o están incompletos) entre los registros de una visita. */
+export function missingRequiredQuestionnaires(
+  records: Array<{ questionnaire_type: QuestionnaireType; responses: Record<string, unknown> }>,
+): QuestionnaireType[] {
+  const completed = new Set(
+    records.filter((r) => isQuestionnaireRecordComplete(r.questionnaire_type, r.responses ?? {})).map((r) => r.questionnaire_type),
+  );
+  return REQUIRED_VISIT_QUESTIONNAIRES.filter((type) => !completed.has(type));
+}
+
 export function validateQuestionnaireTrace<T extends QuestionnaireTrace>(
   records: T[],
   expected: { visitId: string; patientId: string; visitType: string },

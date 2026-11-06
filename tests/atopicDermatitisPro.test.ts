@@ -14,7 +14,15 @@ import {
   scorePoem,
   scorePruritusNrs,
 } from '../src/services/atopicDermatitisPro';
-import { CANONICAL_QUESTIONNAIRE_CODE, deriveQuestionnaireScores, formatQuestionnaireResult, normalizeQuestionnaireCode } from '../src/services/questionnaireDomain';
+import {
+  CANONICAL_QUESTIONNAIRE_CODE,
+  REQUIRED_VISIT_QUESTIONNAIRES,
+  deriveQuestionnaireScores,
+  formatQuestionnaireResult,
+  isQuestionnaireRecordComplete,
+  missingRequiredQuestionnaires,
+  normalizeQuestionnaireCode,
+} from '../src/services/questionnaireDomain';
 
 const all = (value: number) => Object.fromEntries(POEM_ITEMS.map((i) => [i.key, value]));
 
@@ -113,5 +121,36 @@ describe('Cambio longitudinal (mes 12 − basal)', () => {
     expect(isResponseItemKey('_version')).toBe(false);
     expect(isResponseItemKey('q1')).toBe(true);
     expect(isResponseItemKey('score')).toBe(true);
+  });
+});
+
+describe('Cuestionarios obligatorios de la visita (aviso de la ficha)', () => {
+  const rec = (questionnaire_type: Parameters<typeof isQuestionnaireRecordComplete>[0], responses: Record<string, unknown> = {}) => ({ questionnaire_type, responses });
+  const previous = ['iexpac', 'dlqi', 'evasaf', 'morisky', 'eq5d'] as const;
+  const fullPoem = buildPoemResponses({ q1: 0, q2: 0, q3: 0, q4: 0, q5: 0, q6: 0, q7: 0 });
+
+  it('POEM y NRS pasan a ser obligatorios; PAM-10 sigue sin serlo', () => {
+    expect(REQUIRED_VISIT_QUESTIONNAIRES).toEqual(['iexpac', 'dlqi', 'evasaf', 'morisky', 'eq5d', 'poem', 'pruritus_nrs']);
+    expect(REQUIRED_VISIT_QUESTIONNAIRES).not.toContain('pam10');
+  });
+
+  it('una visita con los instrumentos previos pero sin POEM/NRS queda pendiente', () => {
+    expect(missingRequiredQuestionnaires(previous.map((t) => rec(t)))).toEqual(['poem', 'pruritus_nrs']);
+  });
+
+  it('completa con POEM de 7 ítems y NRS registrada (también con 0 en ambos)', () => {
+    const records = [...previous.map((t) => rec(t)), rec('poem', fullPoem), rec('pruritus_nrs', buildPruritusNrsResponses(0))];
+    expect(missingRequiredQuestionnaires(records)).toEqual([]);
+  });
+
+  it('POEM en borrador o NRS sin valor no cuentan como cumplimentados', () => {
+    const records = [...previous.map((t) => rec(t)), rec('poem', buildPoemResponses({ q1: 2, q2: 1 })), rec('pruritus_nrs', buildPruritusNrsResponses(null))];
+    expect(missingRequiredQuestionnaires(records)).toEqual(['poem', 'pruritus_nrs']);
+    expect(isQuestionnaireRecordComplete('poem', fullPoem)).toBe(true);
+    expect(isQuestionnaireRecordComplete('pruritus_nrs', buildPruritusNrsResponses(10))).toBe(true);
+  });
+
+  it('el criterio de los instrumentos previos no cambia (basta con que exista el registro)', () => {
+    for (const t of previous) expect(isQuestionnaireRecordComplete(t, {})).toBe(true);
   });
 });

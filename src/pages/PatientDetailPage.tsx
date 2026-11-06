@@ -33,10 +33,11 @@ import { POEM_BAND_LABEL, longitudinalChange, scorePoem, scorePruritusNrs } from
 import { getPatientById, type Patient } from '../services/patientService';
 import { getCurrentProfile, type CurrentProfile } from '../services/profileService';
 import { getQuestionnairesByPatient, isQuestionnaireVisitType, type QuestionnaireResponseRecord } from '../services/questionnaireService';
+import { missingRequiredQuestionnaires } from '../services/questionnaireDomain';
 import { listVisitsByPatient, updateVisit, type Visit } from '../services/visitService';
 import { getFollowupStatus } from '../utils/followupStatus';
 
-const REQUIRED_QUESTIONNAIRES = ['iexpac', 'dlqi', 'evasaf', 'morisky', 'eq5d'] as const;
+// Obligatorios y criterio de cumplimentación: questionnaireDomain (REQUIRED_VISIT_QUESTIONNAIRES).
 
 function toSortTs(dateLike: string | null): number {
   return dateLike ? new Date(dateLike).getTime() : Number.MAX_SAFE_INTEGER;
@@ -73,9 +74,8 @@ function isFinalVisit(visitType: string | null): boolean {
   return visitType === 'final' || visitType === 'month_12';
 }
 
-function isVisitQuestionnaireComplete(visitId: string, responseSetByVisitId: Map<string, Set<string>>): boolean {
-  const completed = responseSetByVisitId.get(visitId) ?? new Set<string>();
-  return REQUIRED_QUESTIONNAIRES.every((questionnaire) => completed.has(questionnaire));
+function isVisitQuestionnaireComplete(visitId: string, recordsByVisitId: Map<string, QuestionnaireResponseRecord[]>): boolean {
+  return missingRequiredQuestionnaires(recordsByVisitId.get(visitId) ?? []).length === 0;
 }
 
 function getLatestVisitByType(visits: Visit[], selector: (visitType: string | null) => boolean): Visit | null {
@@ -267,10 +267,9 @@ export function PatientDetailPage() {
   }, [questionnaires]);
 
   const questionnaireCompletionByVisitId = useMemo(() => {
-    const map = new Map<string, Set<string>>();
+    const map = new Map<string, QuestionnaireResponseRecord[]>();
     questionnaires.forEach((item) => {
-      if (!map.has(item.visit_id)) map.set(item.visit_id, new Set());
-      map.get(item.visit_id)?.add(item.questionnaire_type);
+      map.set(item.visit_id, [...(map.get(item.visit_id) ?? []), item]);
     });
     return map;
   }, [questionnaires]);
