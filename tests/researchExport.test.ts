@@ -176,6 +176,89 @@ describe('Paquete de exportación (datos sintéticos)', () => {
     expect(long.filter((r) => r.iexpac_registrado === '0').every((r) => r.iexpac_total === '')).toBe(true);
   });
 
+  it('POEM y NRS de prurito: ítems, totales, ausentes ≠ 0 y cambio mes 12 − basal solo con dos mediciones válidas', async () => {
+    const { table } = await exportAll(data);
+    const wide = table('analisis/wide_pacientes.csv');
+    const long = table('analisis/long_visitas.csv');
+    const recordOf = (studyCode: string, visitType: string, code: string) => {
+      const patient = data.patients.find((p) => p.study_code === studyCode)!;
+      const visit = data.visits.find((v) => v.patient_id === patient.id && v.visit_type === visitType && v.visit_status !== 'cancelled');
+      return visit ? data.questionnaires.find((q) => q.visit_id === visit.id && q.questionnaire_code === code) : undefined;
+    };
+    let extremes = 0;
+    let incomplete = 0;
+    let nrsZero = 0;
+    let nrsAbsent = 0;
+    for (const row of wide) {
+      for (const slot of ['v0', 'v12'] as const) {
+        const poem = recordOf(row.study_code, slot === 'v0' ? 'baseline' : 'month_12', 'POEM');
+        const responses = (poem?.responses ?? {}) as Record<string, unknown>;
+        for (let q = 1; q <= 7; q += 1) {
+          const value = responses[`q${q}`];
+          expect(row[`poem_q${q}_${slot}`]).toBe(value === undefined ? '' : String(value));
+        }
+        const answered = [1, 2, 3, 4, 5, 6, 7].filter((q) => responses[`q${q}`] !== undefined).length;
+        if (poem) {
+          expect(row[`poem_registrado_${slot}`]).toBe('1');
+          expect(row[`poem_items_respondidos_${slot}`]).toBe(String(answered)); // _version no cuenta como ítem
+          expect(row[`poem_version_${slot}`]).toBe('POEM-ES-IP-2026-11');
+          if (answered === 7) {
+            const sum = [1, 2, 3, 4, 5, 6, 7].reduce((acc, q) => acc + Number(responses[`q${q}`]), 0);
+            expect(row[`poem_total_${slot}`]).toBe(String(sum));
+            if (sum === 0 || sum === 28) extremes += 1;
+          } else {
+            expect(row[`poem_total_${slot}`]).toBe('');
+            expect(row[`poem_banda_${slot}`]).toBe('');
+            expect(row[`poem_sin_contestar_${slot}`]).toBe(String(7 - answered));
+            incomplete += 1;
+          }
+        } else if (row[`estado_${slot}`] === 'completed') {
+          expect(row[`poem_registrado_${slot}`]).toBe('0');
+          expect(row[`poem_total_${slot}`]).toBe('');
+        }
+        const nrs = recordOf(row.study_code, slot === 'v0' ? 'baseline' : 'month_12', 'PRURITUS_NRS');
+        const score = (nrs?.responses as Record<string, unknown> | undefined)?.score;
+        expect(row[`nrs_prurito_valor_${slot}`]).toBe(score === undefined ? '' : String(score));
+        if (nrs) expect(row[`nrs_prurito_variante_${slot}`]).toBe('worst_itch_nrs_24h');
+        if (nrs) expect(row[`nrs_prurito_periodo_recuerdo_${slot}`]).toBe('24h');
+        if (score === 0) nrsZero += 1;
+        if (nrs && score === undefined) nrsAbsent += 1;
+      }
+      for (const [change, from] of [['poem_total_cambio_v12_v0', 'poem_total'], ['nrs_prurito_valor_cambio_v12_v0', 'nrs_prurito_valor']] as const) {
+        const a = row[`${from}_v0`];
+        const b = row[`${from}_v12`];
+        expect(row[change]).toBe(a !== '' && b !== '' ? String(Number(b) - Number(a)) : '');
+      }
+    }
+    // El conjunto sintético cubre los casos clínicos relevantes.
+    expect(extremes).toBeGreaterThan(0);
+    expect(incomplete).toBeGreaterThan(0);
+    expect(nrsZero).toBeGreaterThan(0);
+    expect(nrsAbsent).toBeGreaterThan(0);
+    expect(wide.filter((r) => r.poem_total_cambio_v12_v0 !== '').length).toBeGreaterThan(0);
+    expect(wide.filter((r) => r.nrs_prurito_valor_cambio_v12_v0 !== '').length).toBeGreaterThan(0);
+    // LONG: una fila por visita; POEM/NRS solo existen en basal y mes 12.
+    expect(long.filter((r) => r.poem_registrado === '1').every((r) => r.visit_type === 'baseline' || r.visit_type === 'month_12')).toBe(true);
+    // Incompletos señalados para revisión, sin errores de rango.
+    const issues = table('analisis/incidencias_integridad.csv');
+    expect(issues.filter((i) => i.detalle.startsWith('POEM incompleto')).length).toBe(incomplete);
+    expect(issues.some((i) => i.tipo === 'valor_fuera_de_rango')).toBe(false);
+  });
+
+  it('las variables de IEXPAC y del resto de instrumentos se conservan', async () => {
+    const { table, text } = await exportAll(data);
+    const header = Object.keys(table('analisis/wide_pacientes.csv')[0]);
+    for (const name of ['iexpac_total_v0', 'iexpac_total_v12', 'iexpac_item12_v0', 'iexpac_q1_v0', 'iexpac_q15_v12', 'iexpac_total_cambio_v12_v0', 'dlqi_total_cambio_v12_v0', 'evasaf_media_cambio_v12_v0', 'eq5d_eva_cambio_v12_v0', 'pam10_suma_cambio_v12_v0', 'morisky_adherente_v0']) {
+      expect(header).toContain(name);
+    }
+    // IEXPAC precede a los nuevos instrumentos (orden de columnas existente sin cambios).
+    expect(header.indexOf('iexpac_total_v0')).toBeLessThan(header.indexOf('poem_total_v0'));
+    const dictionary = text('diccionario_variables.csv');
+    for (const name of ['poem_total_v0', 'poem_q7_v12', 'nrs_prurito_valor_v12', 'nrs_prurito_variante_v0', 'poem_total_cambio_v12_v0', 'nrs_prurito_valor_cambio_v12_v0']) {
+      expect(dictionary).toContain(name);
+    }
+  });
+
   it('exporta todas las respuestas individuales de los cuestionarios', async () => {
     const { table } = await exportAll(data);
     const items = table('analisis/cuestionarios_items.csv');

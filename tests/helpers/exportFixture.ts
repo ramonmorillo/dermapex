@@ -68,6 +68,8 @@ export function syntheticData(options: { patients: number; seed?: number; interv
     ['IEXPAC', 'IEXPAC – Experiencia del paciente crónico', 'IEXPAC ©2015 castellano (15 ítems)'],
     ['MORISKY_GREEN', 'Morisky-Green (4 ítems)', 'heredado IRIS – pendiente de validar'],
     ['PAM10', 'PAM-10', 'heredado IRIS – pendiente de validar'],
+    ['POEM', 'POEM – Patient-Oriented Eczema Measure', 'POEM-ES-IP-2026-11 · castellano aportado por IP'],
+    ['PRURITUS_NRS', 'NRS de prurito – peor picor 24 h', 'worst_itch_nrs_24h · adaptada de Phan 2012'],
   ].map(([code, label, version], i) => ({ questionnaire_code: code, measurement_id: uuid(8, i + 1), label, instrument_version: version, is_active: true }));
   const measurementOf = (code: string) => questionnaireMap.find((m) => m.questionnaire_code === code)!.measurement_id;
 
@@ -138,6 +140,24 @@ export function syntheticData(options: { patients: number; seed?: number; interv
         const pam: Row = {};
         for (let q = 1; q <= 10; q += 1) pam[`q${q}`] = 1 + Math.floor(r() * 4);
         add('PAM10', pam);
+        // POEM y NRS deterministas (sin consumir r(), para no alterar el resto del conjunto sintético):
+        // extremos 0 → 28, incompleto, sin registro; NRS 0, registro sin puntuación (ausente) y sin registro.
+        const poemPattern = p % 5;
+        if (poemPattern !== 2) {
+          const poem: Row = { _version: 'POEM-ES-IP-2026-11' };
+          for (let q = 1; q <= 7; q += 1) {
+            if (poemPattern === 1 && q > 5) continue;
+            poem[`q${q}`] = poemPattern === 0 ? (type === 'baseline' ? 0 : 4) : (p + q + (type === 'baseline' ? 1 : 0)) % 5;
+          }
+          add('POEM', poem);
+        }
+        const nrsPattern = p % 4;
+        if (nrsPattern !== 2) {
+          const nrs: Row = { _variant: 'worst_itch_nrs_24h', _recall_period: '24h' };
+          if (nrsPattern === 0) nrs.score = type === 'baseline' ? 0 : 10;
+          else if (nrsPattern === 3) nrs.score = (p + (type === 'baseline' ? 3 : 0)) % 11;
+          add('PRURITUS_NRS', nrs);
+        }
         add('MORISKY_GREEN', { q1: r() > 0.5, q2: true, q3: false, q4: r() > 0.7 });
       }
 

@@ -28,7 +28,8 @@ import type { PatientMedication } from '../features/medications/types';
 import { STUDY_ARM_LABEL, getStratificationReasonLabel } from '../constants/dermapexStudyConfig';
 import { getLatestCmoScoreByPatient, listCmoScoresByPatient, type CmoScoreHistoryEntry, type CmoScoreRecord } from '../services/cmoScoreService';
 import { canViewCmoResults, listPatientStratifications, type StratificationRegistryRow } from '../services/cmoStratificationService';
-import { listInterventionsByPatient, type PriorityLevel } from '../services/interventionService';
+import { listInterventionsByPatient } from '../services/interventionService';
+import { POEM_BAND_LABEL, longitudinalChange, scorePoem, scorePruritusNrs } from '../services/atopicDermatitisPro';
 import { getPatientById, type Patient } from '../services/patientService';
 import { getCurrentProfile, type CurrentProfile } from '../services/profileService';
 import { getQuestionnairesByPatient, isQuestionnaireVisitType, type QuestionnaireResponseRecord } from '../services/questionnaireService';
@@ -36,12 +37,6 @@ import { listVisitsByPatient, updateVisit, type Visit } from '../services/visitS
 import { getFollowupStatus } from '../utils/followupStatus';
 
 const REQUIRED_QUESTIONNAIRES = ['iexpac', 'dlqi', 'evasaf', 'morisky', 'eq5d'] as const;
-
-const PRIORITY_LEVEL_LABEL: Record<PriorityLevel, string> = {
-  high: 'Prioridad alta',
-  medium: 'Prioridad media',
-  low: 'Prioridad baja',
-};
 
 function toSortTs(dateLike: string | null): number {
   return dateLike ? new Date(dateLike).getTime() : Number.MAX_SAFE_INTEGER;
@@ -113,7 +108,7 @@ export function PatientDetailPage() {
   const [cmoHistory, setCmoHistory] = useState<CmoScoreHistoryEntry[]>([]);
   const [stratifications, setStratifications] = useState<StratificationRegistryRow[]>([]);
   const [profile, setProfile] = useState<CurrentProfile | null>(null);
-  const [interventions, setInterventions] = useState<Array<{ id: string; visit_id: string; intervention_type: string; priority_level: PriorityLevel | null; usual_care_code?: string | null }>>([]);
+  const [interventions, setInterventions] = useState<Array<{ id: string; visit_id: string; intervention_type: string; intervention_domain: string | null; usual_care_code?: string | null }>>([]);
   const [questionnaires, setQuestionnaires] = useState<QuestionnaireResponseRecord[]>([]);
   const [activeMedications, setActiveMedications] = useState<PatientMedication[]>([]);
   const [latestMedicationReviewDate, setLatestMedicationReviewDate] = useState<string | null>(null);
@@ -182,7 +177,7 @@ export function PatientDetailPage() {
               id: x.id,
               visit_id: x.visit_id,
               intervention_type: x.intervention_type,
-              priority_level: x.priority_level,
+              intervention_domain: x.intervention_domain,
             })),
           );
         } else {
@@ -301,6 +296,27 @@ export function PatientDetailPage() {
   const finalEq5d = getQuestionnaireByVisit(questionnaireByVisitId, finalVisit?.id ?? null, 'eq5d');
   const baselinePam10 = getQuestionnaireByVisit(questionnaireByVisitId, baselineVisit?.id ?? null, 'pam10');
   const finalPam10 = getQuestionnaireByVisit(questionnaireByVisitId, finalVisit?.id ?? null, 'pam10');
+  const baselinePoem = getQuestionnaireByVisit(questionnaireByVisitId, baselineVisit?.id ?? null, 'poem');
+  const finalPoem = getQuestionnaireByVisit(questionnaireByVisitId, finalVisit?.id ?? null, 'poem');
+  const baselineNrs = getQuestionnaireByVisit(questionnaireByVisitId, baselineVisit?.id ?? null, 'pruritus_nrs');
+  const finalNrs = getQuestionnaireByVisit(questionnaireByVisitId, finalVisit?.id ?? null, 'pruritus_nrs');
+  const poemBaselineScore = baselinePoem ? scorePoem(baselinePoem.responses) : null;
+  const poemFinalScore = finalPoem ? scorePoem(finalPoem.responses) : null;
+  const nrsBaselineScore = baselineNrs ? scorePruritusNrs(baselineNrs.responses) : null;
+  const nrsFinalScore = finalNrs ? scorePruritusNrs(finalNrs.responses) : null;
+  // Convención única: mes 12 − basal; solo con dos mediciones válidas y comparables (misma versión/variante).
+  const deltaPoem = longitudinalChange(poemBaselineScore?.total, poemFinalScore?.total, {
+    baseline: typeof baselinePoem?.responses._version === 'string' ? baselinePoem.responses._version : null,
+    final: typeof finalPoem?.responses._version === 'string' ? finalPoem.responses._version : null,
+  });
+  const deltaNrs = longitudinalChange(nrsBaselineScore?.score, nrsFinalScore?.score, {
+    baseline: nrsBaselineScore?.variant ?? null,
+    final: nrsFinalScore?.variant ?? null,
+  });
+  const formatPoem = (score: ReturnType<typeof scorePoem> | null) =>
+    !score ? null : score.total === null ? `Incompleto (${score.answeredItems}/7)` : `${score.total}/28 · ${score.band ? POEM_BAND_LABEL[score.band] : ''}`;
+  const formatNrs = (score: ReturnType<typeof scorePruritusNrs> | null) =>
+    !score ? null : score.score === null ? 'Sin puntuación' : `${score.score}/10`;
 
   const deltaIexpac = (() => {
     const basal = toNullableNumber(baselineIexpac?.total_score);
@@ -346,7 +362,9 @@ export function PatientDetailPage() {
     { key: 'morisky', label: 'Morisky-Green', baseline: baselineMorisky, final: finalMorisky },
     { key: 'eq5d', label: 'EQ-5D-5L', baseline: baselineEq5d, final: finalEq5d },
     { key: 'pam10', label: 'PAM-10', baseline: baselinePam10, final: finalPam10 },
-  ];
+    { key: 'poem', label: 'POEM', baseline: baselinePoem, final: finalPoem, baselineText: formatPoem(poemBaselineScore), finalText: formatPoem(poemFinalScore) },
+    { key: 'pruritus_nrs', label: 'NRS prurito (24 h)', baseline: baselineNrs, final: finalNrs, baselineText: formatNrs(nrsBaselineScore), finalText: formatNrs(nrsFinalScore) },
+  ] as Array<{ key: string; label: string; baseline: QuestionnaireResponseRecord | null; final: QuestionnaireResponseRecord | null; baselineText?: string | null; finalText?: string | null }>;
   const checkMark = (present: boolean) => (
     <span className={present ? 'check-cell check-yes' : 'check-cell check-no'}>
       <span aria-hidden="true">{present ? '✓' : '✗'}</span>
@@ -633,8 +651,8 @@ export function PatientDetailPage() {
                 {questionnaireRows.map((row) => (
                   <tr key={row.key}>
                     <td className="strong">{row.label}</td>
-                    <td>{checkMark(Boolean(row.baseline))}</td>
-                    <td>{checkMark(Boolean(row.final))}</td>
+                    <td>{checkMark(Boolean(row.baseline))}{row.baselineText ? <span className="cell-muted"> {row.baselineText}</span> : null}</td>
+                    <td>{checkMark(Boolean(row.final))}{row.finalText ? <span className="cell-muted"> {row.finalText}</span> : null}</td>
                   </tr>
                 ))}
               </tbody>
@@ -648,6 +666,14 @@ export function PatientDetailPage() {
             <div>
               <dt>Δ EQ5D VAS</dt>
               <dd><TrendDelta value={deltaEq5dVas} decimals={2} /></dd>
+            </div>
+            <div>
+              <dt>Δ POEM</dt>
+              <dd><TrendDelta value={deltaPoem} favorable="lower" /></dd>
+            </div>
+            <div>
+              <dt>Δ NRS prurito</dt>
+              <dd><TrendDelta value={deltaNrs} favorable="lower" /></dd>
             </div>
             <div>
               <dt>Cambio adherencia</dt>
@@ -665,7 +691,7 @@ export function PatientDetailPage() {
               {interventions.slice(0, 10).map((item) => (
                 <li key={item.id}>
                   <span>{item.intervention_type}</span>
-                  <span className="cell-muted">{item.priority_level ? PRIORITY_LEVEL_LABEL[item.priority_level] : '-'}</span>
+                  <span className="cell-muted">{item.intervention_domain ?? '-'}</span>
                 </li>
               ))}
             </ul>

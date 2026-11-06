@@ -25,7 +25,7 @@ Para el equipo investigador y los responsables del análisis estadístico. Forma
 | `manifest.json` | Fecha, versión, alcance, **recuento por tabla (BD frente a exportado)**, huella SHA-256 de cada fichero, columnas excluidas, incidencias y avisos | — |
 | `diccionario_variables.csv` | **Diccionario de datos**: variable, etiqueta, definición, tipo, unidad, valores admitidos, instrumento, visita, origen, regla de cálculo, valores perdidos, formato SPSS | una variable |
 | `analisis/long_visitas` | **Formato longitudinal**: datos de la visita, CMO, puntuaciones de cuestionarios, intervenciones y tratamientos vigentes | paciente × visita |
-| `analisis/wide_pacientes` | **Formato transversal**: variables de cada visita con sufijo `_v0` (basal), `_v3`, `_v6`, `_v9`, `_v12` (meses); ítems de IEXPAC; cambios v12 − v0 | paciente |
+| `analisis/wide_pacientes` | **Formato transversal**: variables de cada visita con sufijo `_v0` (basal), `_v3`, `_v6`, `_v9`, `_v12` (meses); ítems de IEXPAC y POEM; cambios v12 − v0 | paciente |
 | `analisis/cuestionarios_items` | **Respuestas individuales** de todos los cuestionarios | ítem de un cuestionario |
 | `analisis/estratificaciones_cmo` | Estratificaciones CMO codificadas | estratificación |
 | `analisis/medicacion_por_visita` | Tratamientos vigentes en la fecha de cada visita | tratamiento × visita |
@@ -48,6 +48,28 @@ Para el equipo investigador y los responsables del análisis estadístico. Forma
 - **Visita en el formato WIDE:** se toma la visita **no cancelada** de cada tipo. Si solo existe una cancelada, `estado_vX = cancelled` y el resto de variables de esa visita quedan vacías.
 - **«No registrado» frente a «sin intervención»:** `registro_intervenciones` distingue `sin_registro` de `sin_intervencion`.
 - **Puntuaciones de cuestionarios:** se recalculan a partir de las respuestas originales con el algoritmo que figura en `manifest.json`. **Las reglas de IEXPAC, EVASAF, Morisky-Green, EQ-5D-5L y PAM-10 son provisionales** hasta validarlas con los manuales oficiales; las respuestas individuales permiten recalcularlas.
+- **Intervenciones (desde el 2026-11-06):** el formulario ya no recoge prioridad, nivel CMO vinculado ni «entregada». Las columnas `priority_level`, `linked_to_cmo_level` y `delivered` se conservan con su valor histórico; en los registros nuevos `delivered = 1` (registrar = realizada, igual que en la cohorte estándar) y las otras dos quedan vacías. El nivel CMO de la visita está en `cmo_nivel`.
+
+### 3.1 POEM y NRS de prurito (solo visita basal y mes 12)
+
+Texto: documentos aportados por el IP (POEM adaptado de Charman 2013; NRS adaptada de Phan 2012). Licencias de uso **pendientes de confirmar**. La fecha de la medición es la fecha de realización de la visita (`fecha_v0`, `fecha_v12`); el sistema no registra una fecha de administración distinta.
+
+| Variable propuesta en el encargo | Variable exportada (convención `_v0`/`_v12` existente) | Tipo · rango | Regla |
+|---|---|---|---|
+| `poem_baseline_item_1`…`_7` | `poem_q1_v0`…`poem_q7_v0` | entero 0-4 | 0 = ningún día … 4 = todos los días; vacío = no contestado (≠ 0) |
+| `poem_baseline_total` | `poem_total_v0` | entero 0-28 | Suma **solo con los 7 ítems** (regla estricta, decisión IP 2026-11-06); si falta alguno, vacío |
+| — | `poem_sin_contestar_v0` | entero 0-7 | Ítems sin respuesta; permite aplicar la regla de Nottingham (1 ausente = 0) en el análisis |
+| — | `poem_banda_v0` | texto | `limpio` 0-2, `leve` 3-7, `moderada` 8-16, `grave` 17-24, `muy_grave` 25-28 (Charman 2013) |
+| — | `poem_version_v0` | texto | Versión guardada con cada registro (`POEM-ES-IP-2026-11`) |
+| `poem_baseline_date` | `fecha_v0` | fecha | Fecha de realización de la visita |
+| `poem_month12_*` | mismas variables con `_v12` | | |
+| `pruritus_nrs_baseline` / `_month12` | `nrs_prurito_valor_v0` / `_v12` | entero 0-10 | Peor picor en las últimas 24 h; vacío = no registrado (≠ 0). Sin umbrales de respuesta |
+| `pruritus_nrs_variant` | `nrs_prurito_variante_v0` / `_v12` | texto | `worst_itch_nrs_24h` (NRS de peor picor 24 h; **no** se etiqueta como PP-NRS licenciada) |
+| `pruritus_nrs_recall_period` | `nrs_prurito_periodo_recuerdo_v0` / `_v12` | texto | `24h` |
+| `poem_change_12m` | `poem_total_cambio_v12_v0` | entero | `poem_total_v12 − poem_total_v0`, solo si ambos existen y `poem_version` coincide |
+| `pruritus_nrs_change_12m` | `nrs_prurito_valor_cambio_v12_v0` | entero | `nrs_prurito_valor_v12 − nrs_prurito_valor_v0`, solo si ambos existen y la variante coincide |
+
+Convención de cambio en toda la aplicación: **final − basal** (negativo = menos síntomas en POEM/NRS). En LONG las mismas variables van sin sufijo de visita (`poem_total`, `nrs_prurito_valor`…). En `cuestionarios_items` aparecen también las claves de metadatos `_version`, `_variant` y `_recall_period` (no cuentan como ítems respondidos). Un POEM incompleto genera una incidencia «revisar» en `incidencias_integridad`.
 
 ## 4. Abrir en SPSS
 

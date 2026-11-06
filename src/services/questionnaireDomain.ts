@@ -1,7 +1,8 @@
 import { DLQI_BAND_LABEL, scoreDlqi } from "./dlqi";
 import { scoreEvasaf } from "./evasaf";
+import { POEM_BAND_LABEL, PRURITUS_NRS_VARIANT_LABEL, scorePoem, scorePruritusNrs } from "./atopicDermatitisPro";
 
-export type QuestionnaireType = "iexpac" | "morisky" | "eq5d" | "pam10" | "dlqi" | "evasaf";
+export type QuestionnaireType = "iexpac" | "morisky" | "eq5d" | "pam10" | "dlqi" | "evasaf" | "poem" | "pruritus_nrs";
 
 export const CANONICAL_QUESTIONNAIRE_CODE: Record<QuestionnaireType, string> = {
   iexpac: "IEXPAC",
@@ -10,6 +11,8 @@ export const CANONICAL_QUESTIONNAIRE_CODE: Record<QuestionnaireType, string> = {
   pam10: "PAM10",
   dlqi: "DLQI",
   evasaf: "EVASAF",
+  poem: "POEM",
+  pruritus_nrs: "PRURITUS_NRS",
 };
 
 export type QuestionnaireScores = {
@@ -56,6 +59,8 @@ export function normalizeQuestionnaireCode(
     return "pam10";
   if (value === "dlqi") return "dlqi";
   if (value === "evasaf") return "evasaf";
+  if (value === "poem") return "poem";
+  if (value === "pruritus_nrs") return "pruritus_nrs";
 
   return null;
 }
@@ -99,6 +104,16 @@ export function deriveQuestionnaireScores(
     // secondaryScore = número de ítems sin contestar (con 2 o más no se puntúa).
     const dlqi = scoreDlqi(responses);
     return { totalScore: dlqi.total, secondaryScore: dlqi.missingItems };
+  }
+
+  if (questionnaireType === "poem") {
+    // totalScore = 0-28 solo con los 7 ítems; secondaryScore = ítems sin respuesta válida.
+    const poem = scorePoem(responses);
+    return { totalScore: poem.total, secondaryScore: poem.missingItems };
+  }
+
+  if (questionnaireType === "pruritus_nrs") {
+    return { totalScore: scorePruritusNrs(responses).score, secondaryScore: null };
   }
 
   if (questionnaireType === "morisky") {
@@ -184,6 +199,20 @@ export function formatQuestionnaireResult(result: QuestionnaireResult): string {
       return `DLQI (calidad de vida dermatológica) · no puntuable (${dlqi.missingItems} ítems sin contestar)`;
     }
     return `DLQI (calidad de vida dermatológica) · ${dlqi.total}/30 · ${dlqi.band ? DLQI_BAND_LABEL[dlqi.band] : ""}`;
+  }
+
+  if (result.questionnaire_type === "poem") {
+    const poem = scorePoem(result.responses);
+    if (poem.total === null) {
+      return `POEM (síntomas del eccema, 7 días) · no puntuable (${poem.missingItems} ítems sin contestar)`;
+    }
+    return `POEM (síntomas del eccema, 7 días) · ${poem.total}/28 · ${poem.band ? POEM_BAND_LABEL[poem.band] : ""}`;
+  }
+
+  if (result.questionnaire_type === "pruritus_nrs") {
+    const nrs = scorePruritusNrs(result.responses);
+    const variant = nrs.variant ? PRURITUS_NRS_VARIANT_LABEL[nrs.variant] ?? nrs.variant : "variante no registrada";
+    return `NRS de prurito (${variant}) · ${nrs.score === null ? "no registrada" : `${nrs.score}/10`}`;
   }
 
   if (result.questionnaire_type === "morisky") {

@@ -850,6 +850,9 @@ td.numeric, td.strong { white-space: nowrap; }
 .questionnaire-card { padding: 0; border: 0; background: transparent; }
 .questionnaire-card + .questionnaire-card { padding-top: var(--sp-6); border-top: 1px solid var(--iris-border); }
 .questionnaire-card > h2 { margin-bottom: var(--sp-1); }
+.questionnaire-card-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-1); }
+.questionnaire-card-header > h2 { margin: 0; }
+.nrs-scale { gap: var(--sp-2); }
 .questionnaire-grid { display: grid; gap: var(--sp-4); margin-top: var(--sp-4); }
 .questionnaire-item { border: 0; margin: 0; padding: 0; min-width: 0; }
 .questionnaire-item > legend { padding: 0; margin-bottom: var(--sp-2); font-weight: 600; font-size: 0.9rem; color: var(--iris-text); }
