@@ -1,6 +1,7 @@
 import { createHashRouter, Navigate } from 'react-router-dom';
 
 import { AppShell } from './components/layout/AppShell';
+import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AgendaPage } from './pages/AgendaPage';
 import { ConfirmEmailLinkPage } from './pages/ConfirmEmailLinkPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -49,6 +50,7 @@ export const router = createHashRouter([
       { path: '/patients/new', element: <NewPatientPage /> },
       { path: '/agenda', element: <AgendaPage /> },
       { path: '/project', element: <ProjectPage /> },
+      { path: '/admin/users', element: <AdminUsersPage /> },
       { path: '/patients/:id', element: <PatientDetailPage /> },
       { path: '/patients/:id/visits/new', element: <NewVisitPage /> },
       { path: '/patients/:id/visits/:visitId', element: <NewVisitPage /> },

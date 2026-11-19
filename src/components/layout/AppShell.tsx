@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { getCurrentSession, mustChangePassword, signOut, subscribeToAuthChanges } from '../../services/authService';
+import { getCurrentProfile } from '../../services/profileService';
 import { InstitutionalReference } from '../common/InstitutionalReference';
 import { BrandMark } from '../ui/BrandMark';
 import { LoadingState } from '../ui/LoadingState';
@@ -18,6 +19,8 @@ export function AppShell() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   // Cuenta válida del proyecto pero sin autorización en DERMAPEX (p. ej. de otro estudio).
   const [noAccess, setNoAccess] = useState(false);
+  // Solo decide si se MUESTRA el enlace de administración; la autorización real es del servidor.
+  const [isCoordinator, setIsCoordinator] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -49,6 +52,8 @@ export function AppShell() {
         navigate('/set-password?mode=first', { replace: true });
         return;
       }
+
+      void getCurrentProfile().then((r) => { if (mounted) setIsCoordinator(r.data?.role === 'coordinator'); });
 
       setSessionError(null);
       setCheckingSession(false);
@@ -163,6 +168,11 @@ export function AppShell() {
             <NavLink to="/project" className={navLinkClass}>
               Proyecto
             </NavLink>
+            {isCoordinator ? (
+              <NavLink to="/admin/users" className={navLinkClass}>
+                Administración de usuarios
+              </NavLink>
+            ) : null}
           </nav>
           <div className="topbar-meta">
             <span className="system-status" title="Sesión autenticada en el entorno profesional de DERMAPEX">
